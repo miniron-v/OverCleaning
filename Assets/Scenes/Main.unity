@@ -822,6 +822,7 @@ GameObject:
   - component: {fileID: 467837103}
   - component: {fileID: 467837102}
   - component: {fileID: 467837101}
+  - component: {fileID: 467837105}
   m_Layer: 0
   m_Name: Player
   m_TagString: Untagged
@@ -857,7 +858,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: fa82f1c45ed028848855e1a46e8d5321, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerMovement
-  moveSpeed: 5
+  _moveSpeed: 5
 --- !u!114 &467837102
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -870,7 +871,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 62899f850307741f2a39c98a8b639597, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Unity.InputSystem::UnityEngine.InputSystem.PlayerInput
-  m_Actions: {fileID: -944628639613478452, guid: d4853456b0cf30a42a25be1b1610821f, type: 3}
+  m_Actions: {fileID: -944628639613478452, guid: 8c525c6112872ce4bae743a877fafdd9, type: 3}
   m_NotificationBehavior: 0
   m_UIInputModule: {fileID: 0}
   m_DeviceLostEvent:
@@ -884,7 +885,7 @@ MonoBehaviour:
       m_Calls: []
   m_ActionEvents: []
   m_NeverAutoSwitchControlSchemes: 0
-  m_DefaultControlScheme: Keyboard&Mouse
+  m_DefaultControlScheme: Keyboard
   m_DefaultActionMap: Player
   m_SplitScreenIndex: -1
   m_Camera: {fileID: 0}
@@ -938,6 +939,35 @@ Rigidbody:
   m_Interpolate: 1
   m_Constraints: 116
   m_CollisionDetection: 0
+--- !u!114 &467837105
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 467837099}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d50205e407b139f4599149cbf752d7cb, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::OverCleaning.Input.KeyShuffleController
+  _playerInput: {fileID: 467837102}
+  _actionMapName: Player
+  _slotMapName: KeySlots
+  _actionNames:
+  - MoveUp
+  - MoveDown
+  - MoveLeft
+  - MoveRight
+  - Interact
+  _defaultSlotNames:
+  - Slot0
+  - Slot1
+  - Slot2
+  - Slot3
+  - Slot4
+  _playerMovement: {fileID: 467837101}
+  _enableDebugKeys: 1
 --- !u!1 &832575517
 GameObject:
   m_ObjectHideFlags: 0
