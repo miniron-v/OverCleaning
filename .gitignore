@@ -10,6 +10,9 @@
 #
 # Get latest from https://github.com/github/gitignore/blob/main/Unity.gitignore
 #
+# macOS
+.DS_Store
+
 .utmp/
 /[Ll]ibrary/
 /[Tt]emp/
