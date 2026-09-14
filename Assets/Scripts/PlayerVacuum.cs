@@ -13,14 +13,19 @@ namespace OverCleaning.InGame
         [SerializeField] private BoxCollider _vacuumCollider;
         [SerializeField] private LayerMask _obstacleLayers = ~0;
         [Min(0.01f)] [SerializeField] private float _suctionRadius = 1f;
-        [SerializeField] private InputAction _vacuumAction =
-            new InputAction("Vacuum", InputActionType.Button, "<Keyboard>/space");
+        [Min(0.1f)] [SerializeField] private float _pickUpRadius = 1.5f;
+        [SerializeField] private InputAction _carryAction =
+            new InputAction("Carry Vacuum", InputActionType.Button, "<Keyboard>/e");
 
         private PlayerMovement _playerMovement;
         private MaterialPropertyBlock _nozzleProperties;
         private Rigidbody _rigidbody;
         private readonly Collider[] _overlapBuffer = new Collider[32];
+        private readonly RaycastHit[] _castBuffer = new RaycastHit[32];
+        private Transform _groundParent;
+        private bool _carryRequested;
 
+        public bool IsHeld { get; private set; }
         public bool IsRunning { get; private set; }
         public Vector3 SuctionPosition => _suctionPoint.position;
         public float SuctionRadius => _suctionRadius;
@@ -38,27 +43,164 @@ namespace OverCleaning.InGame
             }
 
             _rigidbody.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
+            IsHeld = _vacuumPivot.IsChildOf(transform);
+            _groundParent = IsHeld ? transform.parent : _vacuumPivot.parent;
+            SetRunning(IsHeld);
             UpdateNozzleColor();
         }
 
-        private void OnEnable() => _vacuumAction.Enable();
+        private void OnEnable()
+        {
+            _carryAction.Enable();
+            SetRunning(IsHeld);
+        }
 
         private void OnDisable()
         {
-            _vacuumAction.Disable();
+            _carryAction.Disable();
+            _carryRequested = false;
             SetRunning(false);
         }
 
-        private void OnDestroy() => _vacuumAction.Dispose();
+        private void OnDestroy()
+        {
+            _carryAction.Dispose();
+        }
 
         private void FixedUpdate()
         {
-            RotateWithoutOverlap();
+            if (_carryRequested)
+            {
+                _carryRequested = false;
+                if (IsHeld)
+                    TryDrop();
+                else
+                    TryPickUp();
+            }
+            if (IsHeld)
+                RotateWithoutOverlap();
         }
 
         private void LateUpdate()
         {
-            SetRunning(Application.isFocused && _vacuumAction.IsPressed());
+            if (Application.isFocused && _carryAction.WasPressedThisFrame())
+                _carryRequested = true;
+            SetRunning(IsHeld);
+        }
+
+        private void TryPickUp()
+        {
+            Vector3 handPosition = _rigidbody.position + Vector3.up * 0.5f;
+            if (Vector3.Distance(_vacuumCollider.ClosestPoint(handPosition), handPosition) > _pickUpRadius)
+                return;
+            if (!CanPlaceVacuum(_rigidbody.position, true))
+                return;
+
+            // 붙이기 전 경로를 검사하고, 회전은 기존 벽 검사로 처리합니다.
+            SetVacuumParent(transform, _rigidbody.position);
+            _vacuumPivot.localPosition = Vector3.zero;
+            IsHeld = true;
+            SetRunning(true);
+            Physics.SyncTransforms();
+        }
+
+        private void TryDrop()
+        {
+            // 플레이어 몸과 겹치지 않도록 조금 앞에 내려놓습니다.
+            Vector3 destination = _rigidbody.position + _vacuumPivot.forward * 0.3f;
+            if (!CanPlaceVacuum(destination, false))
+            {
+                Debug.LogWarning("앞에 장애물이 있거나 플레이어와 겹쳐 청소기를 내려놓을 수 없습니다. 조금 물러나서 다시 시도하세요.", this);
+                return;
+            }
+            if (!HasGroundSupport(destination))
+            {
+                Debug.LogWarning("청소기를 내려놓을 위치에 평평한 바닥이 없습니다.", this);
+                return;
+            }
+
+            // 초기 배치나 재컴파일 시 저장된 부모가 Player여도 반드시 분리합니다.
+            Transform groundParent = _groundParent;
+            if (groundParent != null && (groundParent.IsChildOf(transform) || groundParent.GetComponentInParent<Rigidbody>() != null))
+                groundParent = null;
+            SetVacuumParent(groundParent, destination);
+            IsHeld = false;
+            SetRunning(false);
+        }
+
+        private void SetVacuumParent(Transform parent, Vector3 position)
+        {
+            // 재등록하여 놓은 Collider가 플레이어의 복합 Collider로 남지 않게 합니다.
+            _vacuumCollider.enabled = false;
+            _vacuumPivot.SetParent(parent, true);
+            _vacuumPivot.position = position;
+            _vacuumCollider.enabled = true;
+            Physics.SyncTransforms();
+        }
+
+        private bool CanPlaceVacuum(Vector3 destination, bool ignorePlayerAtDestination)
+        {
+            Physics.SyncTransforms();
+            Vector3 halfExtents = Vector3.Scale(_vacuumCollider.size, _vacuumPivot.lossyScale) * 0.5f;
+            Quaternion rotation = _vacuumPivot.rotation;
+            Vector3 currentCenter = _vacuumPivot.TransformPoint(_vacuumCollider.center);
+            Vector3 displacement = destination - _vacuumPivot.position;
+            int count = Physics.OverlapBoxNonAlloc(currentCenter + displacement, halfExtents,
+                _overlapBuffer, rotation, _obstacleLayers, QueryTriggerInteraction.Ignore);
+            if (count == _overlapBuffer.Length)
+                return false;
+            for (int index = 0; index < count; index++)
+            {
+                if (!IsIgnoredCollider(_overlapBuffer[index], ignorePlayerAtDestination))
+                    return false;
+            }
+
+            // 들거나 놓을 때 위치만 바꾸어 얇은 벽 반대편으로 통과하지 않도록 검사합니다.
+            if (displacement.sqrMagnitude < 0.000001f)
+                return true;
+            count = Physics.BoxCastNonAlloc(currentCenter, halfExtents, displacement.normalized,
+                _castBuffer, rotation, displacement.magnitude, _obstacleLayers, QueryTriggerInteraction.Ignore);
+            if (count == _castBuffer.Length)
+                return false;
+            for (int index = 0; index < count; index++)
+            {
+                if (!IsIgnoredCollider(_castBuffer[index].collider, true))
+                    return false;
+            }
+
+            return true;
+        }
+
+        private bool IsIgnoredCollider(Collider other, bool ignorePlayer)
+        {
+            return other == _vacuumCollider || (ignorePlayer && other.attachedRigidbody == _rigidbody);
+        }
+
+        private bool HasGroundSupport(Vector3 destination)
+        {
+            Vector3 halfExtents = _vacuumCollider.size * 0.5f;
+            for (int x = -1; x <= 1; x += 2)
+            {
+                for (int z = -1; z <= 1; z += 2)
+                {
+                    Vector3 corner = _vacuumCollider.center +
+                        new Vector3(x * halfExtents.x, -halfExtents.y + 0.1f, z * halfExtents.z);
+                    Vector3 origin = destination + _vacuumPivot.rotation *
+                        Vector3.Scale(corner, _vacuumPivot.lossyScale);
+                    int count = Physics.RaycastNonAlloc(origin, Vector3.down, _castBuffer,
+                        0.2f, _obstacleLayers, QueryTriggerInteraction.Ignore);
+                    bool supported = false;
+                    for (int index = 0; index < count; index++)
+                    {
+                        if (!IsIgnoredCollider(_castBuffer[index].collider, true) && _castBuffer[index].normal.y > 0.99f)
+                            supported = true;
+                    }
+                    if (!supported)
+                        return false;
+                }
+            }
+
+            return true;
         }
 
         private void RotateWithoutOverlap()
@@ -99,7 +241,7 @@ namespace OverCleaning.InGame
                 return true;
             for (int index = 0; index < count; index++)
             {
-                if (_overlapBuffer[index].attachedRigidbody != _rigidbody)
+                if (!IsIgnoredCollider(_overlapBuffer[index], true))
                     return true;
             }
 
