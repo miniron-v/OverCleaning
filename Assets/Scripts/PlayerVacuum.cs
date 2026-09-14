@@ -18,6 +18,8 @@ namespace OverCleaning.InGame
         [Min(1)] [SerializeField] private int _dustPerSuction = 5;
         [Min(0.01f)] [SerializeField] private float _suctionDuration = 0.2f;
         [Min(1)] [SerializeField] private int _dustCapacity = 50;
+        [SerializeField] private TrashCan _trashCan;
+        [Min(0.1f)] [SerializeField] private float _emptyDuration = 2f;
         [SerializeField] private InputAction _emptyAction =
             new InputAction("Empty Dust Bin", InputActionType.Button, "<Keyboard>/r");
         [Min(0.1f)] [SerializeField] private float _pickUpRadius = 1.5f;
@@ -33,9 +35,13 @@ namespace OverCleaning.InGame
         private bool _carryRequested;
         private float _suctionElapsedTime;
         private DustBin _dustBin;
+        private bool _canEmptyDustBin;
+        private float _emptyElapsedTime;
+        private Camera _statusCamera;
 
         public bool IsHeld { get; private set; }
         public bool IsRunning { get; private set; }
+        public bool IsEmptying { get; private set; }
         public Vector3 SuctionPosition => _suctionPoint.position;
         public float SuctionRadius => _suctionRadius;
         public int StoredDustCount => _dustBin?.StoredCount ?? 0;
@@ -45,6 +51,7 @@ namespace OverCleaning.InGame
         private void Awake()
         {
             _dustBin = new DustBin(Mathf.Max(1, _dustCapacity));
+            _statusCamera = Camera.main;
             _playerMovement = GetComponent<PlayerMovement>();
             _rigidbody = GetComponent<Rigidbody>();
             _nozzleProperties = new MaterialPropertyBlock();
@@ -111,6 +118,7 @@ namespace OverCleaning.InGame
             _carryAction.Disable();
             _emptyAction.Disable();
             _carryRequested = false;
+            IsEmptying = false;
             SetRunning(false);
             if (_dustField != null)
                 _dustField.CancelSuctionFor(this);
@@ -141,7 +149,9 @@ namespace OverCleaning.InGame
             if (Application.isFocused && _carryAction.WasPressedThisFrame())
                 _carryRequested = true;
             if (Application.isFocused && IsHeld && _emptyAction.WasPressedThisFrame())
-                EmptyDustBin();
+                BeginEmptying();
+            UpdateEmptying();
+            _canEmptyDustBin = CanEmptyDustBin();
             SetRunning(IsHeld);
             UpdateSuction();
         }
@@ -162,21 +172,75 @@ namespace OverCleaning.InGame
             SetRunning(IsHeld);
         }
 
-        private void EmptyDustBin()
+        private bool CanEmptyDustBin()
         {
+            return IsHeld && StoredDustCount > 0 && _trashCan != null &&
+                _trashCan.CanReceiveDust(_rigidbody.position + Vector3.up * 0.5f, _rigidbody);
+        }
+
+        private void BeginEmptying()
+        {
+            if (IsEmptying || !CanEmptyDustBin())
+                return;
             if (_dustField != null)
                 _dustField.CancelSuctionFor(this);
-            _dustBin.Empty();
+            IsEmptying = true;
+            _emptyElapsedTime = 0f;
+            SetRunning(false);
+        }
+
+        private void UpdateEmptying()
+        {
+            if (!IsEmptying)
+                return;
+            if (!CanEmptyDustBin())
+            {
+                IsEmptying = false;
+                return;
+            }
+
+            _emptyElapsedTime += Time.deltaTime;
+            if (_emptyElapsedTime < Mathf.Max(0.1f, _emptyDuration))
+                return;
+
+            // 완료 시 위치를 다시 검사한 뒤 수거량 이전과 비우기를 함께 처리합니다.
+            if (_trashCan.TryReceiveDust(_rigidbody.position + Vector3.up * 0.5f, _rigidbody, StoredDustCount))
+                _dustBin.Empty();
+            IsEmptying = false;
             _suctionElapsedTime = 0f;
-            SetRunning(IsHeld);
             UpdateNozzleColor();
         }
 
         private void OnGUI()
         {
-            string status = IsFull ? "먼지통 가득 참 — 비워주세요" : IsRunning ? "청소 중" : "작동 정지";
-            GUI.Box(new Rect(16f, 16f, 360f, 85f),
-                $"먼지통 {StoredDustCount}/{DustCapacity} (흡입 중: {_dustBin?.ReservedCount ?? 0})\n{status}\nE: 들기 / 내려놓기    R: 먼지통 비우기 (들고 있을 때)");
+            string status = IsEmptying ? "먼지통 비우는 중" : IsFull ? "먼지통 가득 참 — 비워주세요" : IsRunning ? "청소 중" : "작동 정지";
+            string emptyHint = !IsHeld ? "먼지를 버리려면 청소기를 들어주세요" :
+                IsEmptying ? "쓰레기통 근처에서 기다려주세요" :
+                StoredDustCount == 0 ? "먼지통이 비어 있습니다" :
+                _canEmptyDustBin ? "R: 쓰레기통에 먼지 버리기" : "먼지를 버리려면 쓰레기통 가까이 가세요";
+            GUI.Box(new Rect(16f, 16f, 360f, 105f),
+                $"먼지통 {StoredDustCount}/{DustCapacity} (흡입 중: {_dustBin?.ReservedCount ?? 0})\n{status}\nE: 들기 / 내려놓기\n{emptyHint}");
+            DrawEmptyingProgress();
+        }
+
+        private void DrawEmptyingProgress()
+        {
+            if (!IsEmptying || _statusCamera == null)
+                return;
+            Vector3 screenPosition = _statusCamera.WorldToScreenPoint(transform.position + Vector3.up * 2.3f);
+            if (screenPosition.z <= 0f)
+                return;
+
+            float progress = Mathf.Clamp01(_emptyElapsedTime / Mathf.Max(0.1f, _emptyDuration));
+            float left = screenPosition.x - 75f;
+            float top = Screen.height - screenPosition.y - 40f;
+            GUI.Box(new Rect(left, top, 150f, 40f), "먼지통 비우는 중...");
+            Color previousColor = GUI.color;
+            GUI.color = Color.gray;
+            GUI.DrawTexture(new Rect(left + 8f, top + 25f, 134f, 8f), Texture2D.whiteTexture);
+            GUI.color = Color.green;
+            GUI.DrawTexture(new Rect(left + 8f, top + 25f, 134f * progress, 8f), Texture2D.whiteTexture);
+            GUI.color = previousColor;
         }
 
         private void TryPickUp()
@@ -341,7 +405,7 @@ namespace OverCleaning.InGame
 
         private void SetRunning(bool running)
         {
-            running = running && IsHeld && !IsFull && isActiveAndEnabled;
+            running = running && IsHeld && !IsFull && !IsEmptying && isActiveAndEnabled;
             if (IsRunning == running)
                 return;
             IsRunning = running;
