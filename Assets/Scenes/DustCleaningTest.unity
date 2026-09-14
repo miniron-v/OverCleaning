@@ -2989,6 +2989,11 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 4294967295
   _suctionRadius: 1
+  _dustField: {fileID: 2100000002}
+  _suctionInterval: 0.25
+  _dustPerSuction: 5
+  _suctionDuration: 0.2
+  _dustCapacity: 50
   _pickUpRadius: 1.5
 --- !u!65 &2120000002
 BoxCollider:

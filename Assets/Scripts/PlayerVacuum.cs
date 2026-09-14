@@ -13,6 +13,13 @@ namespace OverCleaning.InGame
         [SerializeField] private BoxCollider _vacuumCollider;
         [SerializeField] private LayerMask _obstacleLayers = ~0;
         [Min(0.01f)] [SerializeField] private float _suctionRadius = 1f;
+        [SerializeField] private DustField _dustField;
+        [Min(0.01f)] [SerializeField] private float _suctionInterval = 0.25f;
+        [Min(1)] [SerializeField] private int _dustPerSuction = 5;
+        [Min(0.01f)] [SerializeField] private float _suctionDuration = 0.2f;
+        [Min(1)] [SerializeField] private int _dustCapacity = 50;
+        [SerializeField] private InputAction _emptyAction =
+            new InputAction("Empty Dust Bin", InputActionType.Button, "<Keyboard>/r");
         [Min(0.1f)] [SerializeField] private float _pickUpRadius = 1.5f;
         [SerializeField] private InputAction _carryAction =
             new InputAction("Carry Vacuum", InputActionType.Button, "<Keyboard>/e");
@@ -24,14 +31,20 @@ namespace OverCleaning.InGame
         private readonly RaycastHit[] _castBuffer = new RaycastHit[32];
         private Transform _groundParent;
         private bool _carryRequested;
+        private float _suctionElapsedTime;
+        private DustBin _dustBin;
 
         public bool IsHeld { get; private set; }
         public bool IsRunning { get; private set; }
         public Vector3 SuctionPosition => _suctionPoint.position;
         public float SuctionRadius => _suctionRadius;
+        public int StoredDustCount => _dustBin?.StoredCount ?? 0;
+        public int DustCapacity => _dustBin?.Capacity ?? Mathf.Max(1, _dustCapacity);
+        public bool IsFull => _dustBin != null && _dustBin.IsFull;
 
         private void Awake()
         {
+            _dustBin = new DustBin(Mathf.Max(1, _dustCapacity));
             _playerMovement = GetComponent<PlayerMovement>();
             _rigidbody = GetComponent<Rigidbody>();
             _nozzleProperties = new MaterialPropertyBlock();
@@ -52,19 +65,61 @@ namespace OverCleaning.InGame
         private void OnEnable()
         {
             _carryAction.Enable();
+            _emptyAction.Enable();
             SetRunning(IsHeld);
+        }
+
+        private void UpdateSuction()
+        {
+            if (!IsRunning || _dustField == null || !_dustField.isActiveAndEnabled ||
+                !_dustBin.HasSpace)
+                return;
+
+            _suctionElapsedTime += Time.deltaTime;
+            float interval = Mathf.Max(0.01f, _suctionInterval);
+            if (_suctionElapsedTime < interval)
+                return;
+
+            // 프레임 지연 뒤 여러 회차를 한꺼번에 흡입하지 않습니다.
+            _suctionElapsedTime %= interval;
+            _dustField.BeginSuction(this, Mathf.Max(1, _dustPerSuction), Mathf.Max(0.01f, _suctionDuration));
+        }
+
+        public bool CanReachDust(Vector3 position)
+        {
+            if (!IsRunning || _suctionPoint == null)
+                return false;
+            Vector3 displacement = position - SuctionPosition;
+            if (displacement.sqrMagnitude < 0.000001f)
+                return true;
+
+            int count = Physics.RaycastNonAlloc(SuctionPosition, displacement.normalized, _castBuffer,
+                displacement.magnitude, _obstacleLayers, QueryTriggerInteraction.Ignore);
+            if (count == _castBuffer.Length)
+                return false;
+            for (int index = 0; index < count; index++)
+            {
+                if (!IsIgnoredCollider(_castBuffer[index].collider, true))
+                    return false;
+            }
+
+            return true;
         }
 
         private void OnDisable()
         {
             _carryAction.Disable();
+            _emptyAction.Disable();
             _carryRequested = false;
             SetRunning(false);
+            if (_dustField != null)
+                _dustField.CancelSuctionFor(this);
         }
 
         private void OnDestroy()
         {
             _carryAction.Dispose();
+            _emptyAction.Dispose();
         }
 
         private void FixedUpdate()
@@ -85,7 +140,43 @@ namespace OverCleaning.InGame
         {
             if (Application.isFocused && _carryAction.WasPressedThisFrame())
                 _carryRequested = true;
+            if (Application.isFocused && IsHeld && _emptyAction.WasPressedThisFrame())
+                EmptyDustBin();
             SetRunning(IsHeld);
+            UpdateSuction();
+        }
+
+        internal bool TryReserveDust()
+        {
+            return IsRunning && _dustBin.TryReserve();
+        }
+
+        internal void ReleaseDustReservation()
+        {
+            _dustBin.CancelReservation();
+        }
+
+        internal void CompleteDustSuction()
+        {
+            _dustBin.CompleteReservation();
+            SetRunning(IsHeld);
+        }
+
+        private void EmptyDustBin()
+        {
+            if (_dustField != null)
+                _dustField.CancelSuctionFor(this);
+            _dustBin.Empty();
+            _suctionElapsedTime = 0f;
+            SetRunning(IsHeld);
+            UpdateNozzleColor();
+        }
+
+        private void OnGUI()
+        {
+            string status = IsFull ? "먼지통 가득 참 — 비워주세요" : IsRunning ? "청소 중" : "작동 정지";
+            GUI.Box(new Rect(16f, 16f, 360f, 85f),
+                $"먼지통 {StoredDustCount}/{DustCapacity} (흡입 중: {_dustBin?.ReservedCount ?? 0})\n{status}\nE: 들기 / 내려놓기    R: 먼지통 비우기 (들고 있을 때)");
         }
 
         private void TryPickUp()
@@ -250,9 +341,11 @@ namespace OverCleaning.InGame
 
         private void SetRunning(bool running)
         {
+            running = running && IsHeld && !IsFull && isActiveAndEnabled;
             if (IsRunning == running)
                 return;
             IsRunning = running;
+            _suctionElapsedTime = 0f;
             UpdateNozzleColor();
         }
 
@@ -261,7 +354,7 @@ namespace OverCleaning.InGame
             if (_nozzleRenderer == null || _nozzleProperties == null)
                 return;
             _nozzleRenderer.GetPropertyBlock(_nozzleProperties);
-            _nozzleProperties.SetColor("_BaseColor", IsRunning ? Color.green : Color.gray);
+            _nozzleProperties.SetColor("_BaseColor", IsFull ? Color.red : IsRunning ? Color.green : Color.gray);
             _nozzleRenderer.SetPropertyBlock(_nozzleProperties);
         }
 

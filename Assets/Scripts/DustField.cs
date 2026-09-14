@@ -39,7 +39,19 @@ namespace OverCleaning.InGame
         private ParticleSystem.Particle[] _particles;
         private Material[] _runtimeMaterials;
         private Texture2D _defaultTexture;
+        private SuctionState[] _suctionStates;
 
+        private struct SuctionState
+        {
+            public bool IsActive;
+            public PlayerVacuum Source;
+            public Vector3 StartPosition;
+            public float StartSize;
+            public float ElapsedTime;
+            public float Duration;
+        }
+
+        /// <summary>흡입 중인 먼지도 포함하며, 흡입구에 도착한 순간 감소합니다.</summary>
         public int RemainingDustCount { get; private set; }
 
         private void Start()
@@ -223,6 +235,7 @@ namespace OverCleaning.InGame
             _particles = new ParticleSystem.Particle[_dustCount];
             _textureIndices = new int[_dustCount];
             _renderBuffer = new ParticleSystem.Particle[_dustCount];
+            _suctionStates = new SuctionState[_dustCount];
             RemainingDustCount = 0;
             for (int index = 0; index < _dustCount; index++)
             {
@@ -342,7 +355,126 @@ namespace OverCleaning.InGame
             };
         }
 
-        /// <summary>월드 좌표 범위 내 먼지를 최대 지정 수량만큼 제거하고 실제 제거량을 반환합니다.</summary>
+        /// <summary>흡입 가능한 먼지를 예약하고 실제 선택 수량을 반환합니다.</summary>
+        public int BeginSuction(PlayerVacuum source, int maximumCount, float duration)
+        {
+            if (_particles == null || source == null || !source.IsRunning || maximumCount <= 0 || duration <= 0f)
+                return 0;
+
+            int selectedCount = 0;
+            float squaredRadius = source.SuctionRadius * source.SuctionRadius;
+            for (int index = RemainingDustCount - 1; index >= 0 && selectedCount < maximumCount; index--)
+            {
+                if (_suctionStates[index].IsActive ||
+                    (_particles[index].position - source.SuctionPosition).sqrMagnitude > squaredRadius ||
+                    !source.CanReachDust(_particles[index].position))
+                    continue;
+                if (!source.TryReserveDust())
+                    break;
+
+                _suctionStates[index] = new SuctionState
+                {
+                    IsActive = true,
+                    Source = source,
+                    StartPosition = _particles[index].position,
+                    StartSize = _particles[index].startSize,
+                    Duration = duration,
+                };
+                selectedCount++;
+            }
+
+            return selectedCount;
+        }
+
+        private void Update()
+        {
+            bool changed = false;
+            for (int index = RemainingDustCount - 1; index >= 0; index--)
+            {
+                SuctionState suction = _suctionStates[index];
+                if (!suction.IsActive)
+                    continue;
+
+                changed = true;
+                if (suction.Source == null || !suction.Source.IsRunning ||
+                    !suction.Source.CanReachDust(_particles[index].position))
+                {
+                    CancelSuction(index);
+                    continue;
+                }
+
+                float remainingDuration = suction.Duration - suction.ElapsedTime;
+                suction.ElapsedTime += Time.deltaTime;
+                float progress = Mathf.Clamp01(suction.ElapsedTime / suction.Duration);
+                if (progress >= 1f)
+                {
+                    suction.Source.CompleteDustSuction();
+                    _suctionStates[index] = default;
+                    RemoveParticleAt(index);
+                    continue;
+                }
+
+                _particles[index].position = Vector3.Lerp(_particles[index].position,
+                    suction.Source.SuctionPosition, Time.deltaTime / remainingDuration);
+                _particles[index].startSize = Mathf.Lerp(suction.StartSize, 0f, progress);
+                _suctionStates[index] = suction;
+            }
+
+            if (changed)
+                UpdateRenderedParticles();
+        }
+
+        private void CancelSuction(int index)
+        {
+            if (_suctionStates[index].Source != null)
+                _suctionStates[index].Source.ReleaseDustReservation();
+            _particles[index].position = _suctionStates[index].StartPosition;
+            _particles[index].startSize = _suctionStates[index].StartSize;
+            _suctionStates[index] = default;
+        }
+
+        public void CancelSuctionFor(PlayerVacuum source)
+        {
+            bool changed = false;
+            for (int index = 0; index < RemainingDustCount; index++)
+            {
+                if (_suctionStates[index].IsActive && _suctionStates[index].Source == source)
+                {
+                    CancelSuction(index);
+                    changed = true;
+                }
+            }
+            if (changed)
+                UpdateRenderedParticles();
+        }
+
+        private void OnDisable()
+        {
+            bool changed = false;
+            for (int index = 0; index < RemainingDustCount; index++)
+            {
+                if (_suctionStates[index].IsActive)
+                {
+                    CancelSuction(index);
+                    changed = true;
+                }
+            }
+            if (changed)
+                UpdateRenderedParticles();
+        }
+
+        private void RemoveParticleAt(int index)
+        {
+            if (_suctionStates[index].IsActive)
+                CancelSuction(index);
+            RemainingDustCount--;
+            _particles[index] = _particles[RemainingDustCount];
+            _textureIndices[index] = _textureIndices[RemainingDustCount];
+            _suctionStates[index] = _suctionStates[RemainingDustCount];
+            _suctionStates[RemainingDustCount] = default;
+        }
+
+        /// <summary>월드 좌표 범위 내 먼지를 최대 지정 수량만큼 즉시 제거하고 실제 제거량을 반환합니다.</summary>
         public int RemoveDustInRange(Vector3 center, float radius, int maximumCount)
         {
             if (_particleSystems == null || radius <= 0f || maximumCount <= 0)
@@ -355,9 +487,7 @@ namespace OverCleaning.InGame
                 if ((_particles[index].position - center).sqrMagnitude > squaredRadius)
                     continue;
 
-                RemainingDustCount--;
-                _particles[index] = _particles[RemainingDustCount];
-                _textureIndices[index] = _textureIndices[RemainingDustCount];
+                RemoveParticleAt(index);
                 removedCount++;
             }
 
