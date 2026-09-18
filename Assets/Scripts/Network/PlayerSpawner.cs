@@ -1,3 +1,4 @@
+using System.Collections;
 using Unity.Netcode;
 using UnityEngine;
 
@@ -5,27 +6,37 @@ namespace OverCleaning.Network
 {
     /// <summary>
     /// 접속한 사람마다 플레이어를 하나씩 스폰한다.
-    /// 자동 스폰을 끄고 이 컴포넌트가 있는 씬에서만 만들어, 시작 화면에는 플레이어가 생기지 않는다.
+    /// 이 컴포넌트가 있는 씬에서만 만들어, 시작 화면에는 플레이어가 생기지 않는다.
+    ///
+    /// 프리팹을 NetworkManager에 등록하지 않고 여기서 들고 있는 이유가 있다.
+    /// 등록해두면 호스트가 접속하는 순간 Netcode가 시작 화면에서 먼저 스폰해버린다.
     /// </summary>
     public sealed class PlayerSpawner : MonoBehaviour
     {
+        [Tooltip("스폰할 플레이어 프리팹. NetworkObject가 있어야 한다.")]
+        [SerializeField] private GameObject _playerPrefab;
+
         [Tooltip("스폰 위치. 비어 있으면 이 오브젝트 자리에 겹쳐서 만든다.")]
         [SerializeField] private Transform[] _spawnPoints;
 
         private NetworkManager _manager;
 
-        private void Start()
+        private IEnumerator Start()
         {
             _manager = NetworkManager.Singleton;
             if (_manager == null)
             {
                 Debug.LogWarning("NetworkManager가 없어 플레이어를 스폰하지 못했습니다.", this);
-                return;
+                yield break;
             }
 
             // 스폰은 서버만 한다. 참가자는 서버가 만든 것을 받기만 한다.
             if (!_manager.IsServer)
-                return;
+                yield break;
+
+            // 이전 씬의 플레이어가 정리되기를 한 프레임 기다린다.
+            // 아직 남아 있으면 이미 있는 것으로 보고 새로 만들지 않는다.
+            yield return null;
 
             _manager.OnClientConnectedCallback += SpawnFor;
             foreach (ulong clientId in _manager.ConnectedClientsIds)
@@ -45,16 +56,17 @@ namespace OverCleaning.Network
                 client.PlayerObject != null)
                 return;
 
-            GameObject prefab = _manager.NetworkConfig.PlayerPrefab;
-            if (prefab == null)
+            if (_playerPrefab == null)
             {
-                Debug.LogError("NetworkManager에 Player Prefab이 등록되어 있지 않습니다.", this);
+                Debug.LogError("PlayerSpawner에 플레이어 프리팹이 지정되어 있지 않습니다.", this);
                 return;
             }
 
             GetSpawnPose(clientId, out Vector3 position, out Quaternion rotation);
-            GameObject player = Instantiate(prefab, position, rotation);
-            player.GetComponent<NetworkObject>().SpawnAsPlayerObject(clientId);
+            GameObject player = Instantiate(_playerPrefab, position, rotation);
+            // 씬이 바뀌면 함께 사라지게 한다. 남겨두면 다음 씬에 이전 위치 그대로 따라와
+            // 스폰 지점도 무시되고 키 배치를 다시 정할 기회도 없다.
+            player.GetComponent<NetworkObject>().SpawnAsPlayerObject(clientId, destroyWithScene: true);
         }
 
         /// <summary>

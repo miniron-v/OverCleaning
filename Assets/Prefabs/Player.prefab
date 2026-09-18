@@ -319,6 +319,7 @@ MonoBehaviour:
   - {fileID: 1447354260286792351}
   - {fileID: 1453705570175810710}
   _playerInput: {fileID: 7708536723614985372}
+  _keyShuffle: {fileID: 1453705570175810710}
 --- !u!1 &8402172145816461381
 GameObject:
   m_ObjectHideFlags: 0

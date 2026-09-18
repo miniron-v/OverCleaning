@@ -39,7 +39,7 @@ namespace OverCleaning.EditorTools
                 PrefabUtility.UnloadPrefabContents(root);
             }
 
-            RegisterToNetworkManager(AssetDatabase.LoadAssetAtPath<GameObject>(PlayerPrefabPath));
+            ClearNetworkManagerPlayerPrefab();
             Debug.Log("Player 프리팹을 네트워크용으로 설정했습니다.");
         }
 
@@ -66,6 +66,8 @@ namespace OverCleaning.EditorTools
 
             SerializedObject serialized = new SerializedObject(networkPlayer);
             serialized.FindProperty("_playerInput").objectReferenceValue = root.GetComponent<PlayerInput>();
+            serialized.FindProperty("_keyShuffle").objectReferenceValue =
+                root.GetComponent<KeyShuffleController>();
 
             SerializedProperty behaviours = serialized.FindProperty("_ownerOnlyBehaviours");
             MonoBehaviour[] ownerOnly =
@@ -84,21 +86,26 @@ namespace OverCleaning.EditorTools
         /// <summary>
         /// 접속한 사람마다 이 프리팹이 자동으로 스폰되도록 NetworkManager에 등록한다.
         /// </summary>
-        private static void RegisterToNetworkManager(GameObject prefab)
+        /// <summary>
+        /// NetworkManager의 Player Prefab 칸을 비운다.
+        /// 값이 있으면 호스트가 접속하는 순간 Netcode가 시작 화면에서 플레이어를 스폰해버린다.
+        /// 스폰은 각 씬의 PlayerSpawner가 맡는다.
+        /// </summary>
+        private static void ClearNetworkManagerPlayerPrefab()
         {
             NetworkManager manager = Object.FindFirstObjectByType<NetworkManager>();
             if (manager == null)
-            {
-                Debug.LogWarning("씬에 NetworkManager가 없어 Player Prefab을 등록하지 못했습니다. " +
-                                 "Start 씬을 열고 다시 실행하세요.");
                 return;
-            }
 
             SerializedObject serialized = new SerializedObject(manager);
-            serialized.FindProperty("NetworkConfig.PlayerPrefab").objectReferenceValue = prefab;
+            SerializedProperty playerPrefab = serialized.FindProperty("NetworkConfig.PlayerPrefab");
+            if (playerPrefab.objectReferenceValue == null)
+                return;
+
+            playerPrefab.objectReferenceValue = null;
             serialized.ApplyModifiedPropertiesWithoutUndo();
             EditorUtility.SetDirty(manager);
-            Debug.Log("NetworkManager에 Player Prefab을 등록했습니다. Start 씬을 저장하세요.");
+            Debug.Log("NetworkManager의 Player Prefab을 비웠습니다. 씬을 저장하세요.");
         }
     }
 }

@@ -62,8 +62,8 @@ namespace OverCleaning.Network
         public static void LoadGameScene() => LoadNetworkScene(GameSceneName);
 
         /// <summary>
-        /// 방에 들어간 뒤 룸으로 이동한다.
-        /// 호스트만 씬을 바꾸고, 참가자는 접속하면서 서버가 있는 씬으로 동기화된다.
+        /// 룸으로 이동한다. 방에 처음 들어갈 때와 게임이 끝난 뒤 모두 쓴다.
+        /// 호스트만 씬을 바꾸고, 참가자는 서버가 있는 씬으로 따라온다.
         /// </summary>
         public static void EnterRoom() => LoadNetworkScene(RoomSceneName);
 

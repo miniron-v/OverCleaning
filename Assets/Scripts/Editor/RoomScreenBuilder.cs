@@ -44,43 +44,13 @@ namespace OverCleaning.EditorTools
             Button leaveButton = UIBuilder.CreateButton(panel, "LeaveButton", "나가기");
 
             UIBuilder.CreateEventSystem();
-            CreatePlayerSpawner();
+            SpawnerBuilder.CreateIfMissing();
             AssignReferences(roomScreen, roomCode, copyButton, playerList, startButton, leaveButton);
 
             Undo.RegisterCreatedObjectUndo(canvas.gameObject, "Build Room Screen UI");
             EditorSceneManager.MarkSceneDirty(roomScreen.gameObject.scene);
             Selection.activeGameObject = canvas.gameObject;
             Debug.Log("룸 UI를 생성했습니다. 씬을 저장하세요.");
-        }
-
-        /// <summary>
-        /// 룸에서 플레이어를 만들 스포너와 스폰 지점을 둔다.
-        /// 지점을 나눠두지 않으면 참가자가 모두 한 자리에 겹친다.
-        /// </summary>
-        private static void CreatePlayerSpawner()
-        {
-            if (Object.FindFirstObjectByType<PlayerSpawner>() != null)
-                return;
-
-            GameObject spawnerObject = new GameObject("PlayerSpawner", typeof(PlayerSpawner));
-            Transform[] points = new Transform[GameSession.MaxPlayers];
-            for (int index = 0; index < points.Length; index++)
-            {
-                GameObject point = new GameObject($"SpawnPoint {index + 1}");
-                point.transform.SetParent(spawnerObject.transform, false);
-                // 바닥 가운데를 기준으로 가로로 늘어세운다.
-                float offset = (index - (points.Length - 1) * 0.5f) * 2f;
-                point.transform.position = new Vector3(offset, 0f, 0f);
-                points[index] = point.transform;
-            }
-
-            SerializedObject serialized =
-                new SerializedObject(spawnerObject.GetComponent<PlayerSpawner>());
-            SerializedProperty spawnPoints = serialized.FindProperty("_spawnPoints");
-            spawnPoints.arraySize = points.Length;
-            for (int index = 0; index < points.Length; index++)
-                spawnPoints.GetArrayElementAtIndex(index).objectReferenceValue = points[index];
-            serialized.ApplyModifiedPropertiesWithoutUndo();
         }
 
         /// <summary>
