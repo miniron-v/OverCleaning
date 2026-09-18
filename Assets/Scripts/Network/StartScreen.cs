@@ -107,19 +107,20 @@ namespace OverCleaning.Network
             try
             {
                 await sessionTask();
-                CloseJoinPanel();
-                SetMessage($"방 코드: {GameSession.Code}");
+                // 씬을 넘어가면 이 오브젝트는 사라지므로 잠금을 되돌리지 않는다.
+                // 참가자는 호스트가 있는 씬으로 Netcode가 알아서 옮겨준다.
+                GameSession.EnterRoom();
+                SetMessage("방으로 들어가는 중...");
+                return;
             }
             catch (Exception exception)
             {
                 SetMessage($"실패: {exception.Message}");
                 Debug.LogException(exception, this);
             }
-            finally
-            {
-                _isBusy = false;
-                UpdateInteractable();
-            }
+
+            _isBusy = false;
+            UpdateInteractable();
         }
 
         /// <summary>

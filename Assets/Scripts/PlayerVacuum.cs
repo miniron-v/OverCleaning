@@ -55,6 +55,14 @@ namespace OverCleaning.InGame
             _playerMovement = GetComponent<PlayerMovement>();
             _rigidbody = GetComponent<Rigidbody>();
             _nozzleProperties = new MaterialPropertyBlock();
+            if (_vacuumPivot == null && _suctionPoint == null && _nozzleRenderer == null &&
+                _vacuumCollider == null)
+            {
+                // 청소기가 없는 곳(대기방 등)에 스폰된 경우다. 이동만 하면 되므로 조용히 꺼둔다.
+                enabled = false;
+                return;
+            }
+
             if (_vacuumPivot == null || _suctionPoint == null || _nozzleRenderer == null || _vacuumCollider == null)
             {
                 Debug.LogError("PlayerVacuum의 회전축, 흡입구, 노즐 Renderer, Collider를 지정하세요.", this);

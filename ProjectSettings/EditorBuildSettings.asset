@@ -9,7 +9,10 @@ EditorBuildSettings:
     path: Assets/Scenes/Start.unity
     guid: 8703e9401c684fc18a746edde3131f61
   - enabled: 1
-    path: Assets/Scenes/Main.unity
-    guid: 99c9720ab356a0642a771bea13969a05
+    path: Assets/Scenes/Room.unity
+    guid: c3887e03bc53a8b49bdc95f98270b4f2
+  - enabled: 1
+    path: Assets/Scenes/DustCleaningTest.unity
+    guid: 3eba98c7e3bc447395e45b59a0be0c24
   m_configObjects:
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 052faaac586de48259a63d0c4782560b, type: 3}

@@ -1,6 +1,8 @@
 using System.Threading.Tasks;
+using Unity.Netcode;
 using Unity.Services.Multiplayer;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 namespace OverCleaning.Network
 {
@@ -11,6 +13,10 @@ namespace OverCleaning.Network
     public static class GameSession
     {
         public const int MaxPlayers = 4;
+        public const string StartSceneName = "Start";
+        public const string RoomSceneName = "Room";
+        public const string GameSceneName = "DustCleaningTest";
+
         private const string NicknameProperty = "nickname";
 
         public static ISession Current { get; private set; }
@@ -48,6 +54,40 @@ namespace OverCleaning.Network
                 .JoinSessionByCodeAsync(code.Trim().ToUpperInvariant(), options);
             Debug.Log($"방에 참가했습니다. 코드: {Current.Code}");
             return Current;
+        }
+
+        /// <summary>
+        /// 호스트만 호출한다. Netcode의 씬 관리가 참가자들의 씬도 함께 옮긴다.
+        /// </summary>
+        public static void LoadGameScene() => LoadNetworkScene(GameSceneName);
+
+        /// <summary>
+        /// 방에 들어간 뒤 룸으로 이동한다.
+        /// 호스트만 씬을 바꾸고, 참가자는 접속하면서 서버가 있는 씬으로 동기화된다.
+        /// </summary>
+        public static void EnterRoom() => LoadNetworkScene(RoomSceneName);
+
+        /// <summary>
+        /// 씬 관리가 켜져 있으면 Unity가 아니라 Netcode를 통해 씬을 바꿔야 상태가 어긋나지 않는다.
+        /// 참가자는 호스트가 정한 씬으로 자동으로 이동하므로 아무것도 하지 않는다.
+        /// </summary>
+        private static void LoadNetworkScene(string sceneName)
+        {
+            NetworkManager manager = NetworkManager.Singleton;
+            if (manager == null)
+            {
+                Debug.LogWarning("NetworkManager가 없어 씬을 바꾸지 못했습니다.");
+                return;
+            }
+
+            // 참가자는 접속하면서 서버가 있는 씬으로 동기화되므로 직접 바꾸지 않는다.
+            if (!manager.IsServer)
+                return;
+
+            SceneEventProgressStatus status =
+                manager.SceneManager.LoadScene(sceneName, LoadSceneMode.Single);
+            if (status != SceneEventProgressStatus.Started)
+                Debug.LogError($"씬 '{sceneName}' 전환에 실패했습니다: {status}");
         }
 
         public static async Task LeaveAsync()
