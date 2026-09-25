@@ -7,7 +7,7 @@ namespace OverCleaning.Lobby
 {
     /// <summary>
     /// 단계 선택 화면. StageSelection의 상태를 그대로 그리기만 하고, 버튼은 요청으로 넘긴다.
-    /// 주도권이 없는 사람도 같은 화면을 보지만 버튼은 누를 수 없다.
+    /// 주도권이 없는 사람도 같은 화면을 보지만 시작 버튼 말고는 버튼이 보이지 않는다.
     /// </summary>
     public sealed class StageSelectPanel : MonoBehaviour
     {
@@ -86,9 +86,10 @@ namespace OverCleaning.Lobby
             int count = _selection.StageCount;
             _pageText.text = count > 0 ? $"{index + 1} / {count}" : "스테이지 없음";
 
-            _closeButton.interactable = canControl;
-            _previousButton.interactable = canControl && index > 0;
-            _nextButton.interactable = canControl && index < count - 1;
+            // 누를 수 없는 버튼은 숨긴다. 시작 버튼만은 남겨 무엇을 기다리는지 알 수 있게 한다.
+            _closeButton.gameObject.SetActive(canControl);
+            _previousButton.gameObject.SetActive(canControl && index > 0);
+            _nextButton.gameObject.SetActive(canControl && index < count - 1);
             _startButton.interactable = canControl && stage != null;
         }
 
