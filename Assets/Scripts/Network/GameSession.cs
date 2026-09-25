@@ -62,6 +62,11 @@ namespace OverCleaning.Network
         public static void LoadGameScene() => LoadNetworkScene(GameSceneName);
 
         /// <summary>
+        /// 고른 스테이지의 씬으로 전원을 옮긴다. 호스트에서만 실제로 바뀐다.
+        /// </summary>
+        public static void LoadStageScene(string sceneName) => LoadNetworkScene(sceneName);
+
+        /// <summary>
         /// 룸으로 이동한다. 방에 처음 들어갈 때와 게임이 끝난 뒤 모두 쓴다.
         /// 호스트만 씬을 바꾸고, 참가자는 서버가 있는 씬으로 따라온다.
         /// </summary>
@@ -116,5 +121,8 @@ namespace OverCleaning.Network
                 return property.Value;
             return string.Empty;
         }
+
+        /// <summary>이 기기 플레이어의 닉네임. 세션이 없으면 빈 문자열이다.</summary>
+        public static string LocalNickname => Current != null ? GetNickname(Current.CurrentPlayer) : string.Empty;
     }
 }

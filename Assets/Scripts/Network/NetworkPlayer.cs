@@ -37,7 +37,7 @@ namespace OverCleaning.Network
         }
 
         /// <summary>
-        /// 인게임에서는 키를 섞고, 대기방에서는 기본 배치를 쓴다.
+        /// 대기방에서는 기본 배치를 쓰고, 그 밖의 스테이지 씬에서는 키를 섞는다.
         /// 씬을 옮기면 플레이어도 새로 스폰되므로 스폰될 때 한 번만 정하면 된다.
         /// 위에서 컴포넌트를 켠 뒤라야 셔플이 먹는다.
         ///
@@ -52,10 +52,11 @@ namespace OverCleaning.Network
                 return;
             }
 
-            if (gameObject.scene.name == GameSession.GameSceneName)
-                _keyShuffle.ShuffleKeys();
-            else
+            // 스테이지마다 씬이 다를 수 있으므로 하나뿐인 대기방을 기준으로 가른다.
+            if (gameObject.scene.name == GameSession.RoomSceneName)
                 _keyShuffle.ResetToDefault();
+            else
+                _keyShuffle.ShuffleKeys();
         }
     }
 }
