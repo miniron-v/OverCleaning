@@ -88,9 +88,11 @@ namespace OverCleaning.Interaction
 
         private string GetInteractKeyName()
         {
-            if (_playerInput == null || _playerInput.actions == null)
+            // 대기방과 스테이지 맵에 같은 이름의 액션이 있으므로 지금 쓰는 맵에서 찾는다.
+            InputActionMap map = _playerInput != null ? _playerInput.currentActionMap : null;
+            if (map == null)
                 return string.Empty;
-            InputAction action = _playerInput.actions.FindAction(InteractActionName);
+            InputAction action = map.FindAction(InteractActionName);
             return action != null ? action.GetBindingDisplayString() : string.Empty;
         }
 
