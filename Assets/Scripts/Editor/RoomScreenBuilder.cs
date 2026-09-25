@@ -28,7 +28,7 @@ namespace OverCleaning.EditorTools
                 UIBuilder.PanelBackground);
 
             // 코드와 복사 버튼을 한 줄에 나란히 둔다.
-            RectTransform codeRow = CreateRow(panel, "RoomCodeRow", 72f);
+            RectTransform codeRow = UIBuilder.CreateRow(panel, "RoomCodeRow", 72f);
             TMP_Text roomCode = UIBuilder.CreateLabel(codeRow, "RoomCode", "방 코드: ------", 52f, 72f);
             Button copyButton = UIBuilder.CreateButton(codeRow, "CopyCodeButton", "복사");
             // 라벨이 남는 폭을 모두 쓰고, 버튼은 제 크기만 차지하게 한다.
@@ -51,26 +51,6 @@ namespace OverCleaning.EditorTools
             EditorSceneManager.MarkSceneDirty(roomScreen.gameObject.scene);
             Selection.activeGameObject = canvas.gameObject;
             Debug.Log("룸 UI를 생성했습니다. 씬을 저장하세요.");
-        }
-
-        /// <summary>
-        /// 자식을 가로로 늘어놓는 한 줄. 세로 레이아웃 안에 가로 배치를 넣을 때 쓴다.
-        /// </summary>
-        private static RectTransform CreateRow(RectTransform parent, string name, float height)
-        {
-            GameObject rowObject = new GameObject(name, typeof(HorizontalLayoutGroup));
-            rowObject.transform.SetParent(parent, false);
-
-            HorizontalLayoutGroup layout = rowObject.GetComponent<HorizontalLayoutGroup>();
-            layout.spacing = 16f;
-            layout.childAlignment = TextAnchor.MiddleLeft;
-            layout.childControlWidth = true;
-            layout.childControlHeight = true;
-            layout.childForceExpandWidth = false;
-            layout.childForceExpandHeight = true;
-
-            UIBuilder.AddLayoutHeight(rowObject, height);
-            return rowObject.GetComponent<RectTransform>();
         }
 
         private static void AssignReferences(RoomScreen roomScreen, TMP_Text roomCode, Button copyButton,

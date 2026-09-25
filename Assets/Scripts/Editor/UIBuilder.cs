@@ -74,6 +74,26 @@ namespace OverCleaning.EditorTools
             return rect;
         }
 
+        /// <summary>
+        /// 자식을 가로로 늘어놓는 한 줄. 세로 레이아웃 안에 가로 배치를 넣을 때 쓴다.
+        /// </summary>
+        internal static RectTransform CreateRow(RectTransform parent, string name, float height)
+        {
+            GameObject rowObject = new GameObject(name, typeof(HorizontalLayoutGroup));
+            rowObject.transform.SetParent(parent, false);
+
+            HorizontalLayoutGroup layout = rowObject.GetComponent<HorizontalLayoutGroup>();
+            layout.spacing = 16f;
+            layout.childAlignment = TextAnchor.MiddleLeft;
+            layout.childControlWidth = true;
+            layout.childControlHeight = true;
+            layout.childForceExpandWidth = false;
+            layout.childForceExpandHeight = true;
+
+            AddLayoutHeight(rowObject, height);
+            return rowObject.GetComponent<RectTransform>();
+        }
+
         internal static TMP_Text CreateLabel(RectTransform parent, string name, string content,
             float fontSize, float height)
         {
