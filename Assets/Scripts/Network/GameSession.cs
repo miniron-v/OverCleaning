@@ -15,7 +15,6 @@ namespace OverCleaning.Network
         public const int MaxPlayers = 4;
         public const string StartSceneName = "Start";
         public const string RoomSceneName = "Room";
-        public const string GameSceneName = "DustCleaningTest";
 
         private const string NicknameProperty = "nickname";
 
@@ -57,12 +56,8 @@ namespace OverCleaning.Network
         }
 
         /// <summary>
-        /// 호스트만 호출한다. Netcode의 씬 관리가 참가자들의 씬도 함께 옮긴다.
-        /// </summary>
-        public static void LoadGameScene() => LoadNetworkScene(GameSceneName);
-
-        /// <summary>
-        /// 고른 스테이지의 씬으로 전원을 옮긴다. 호스트에서만 실제로 바뀐다.
+        /// 고른 스테이지의 씬으로 전원을 옮긴다. 호스트만 호출한다.
+        /// Netcode의 씬 관리가 참가자들의 씬도 함께 옮긴다.
         /// </summary>
         public static void LoadStageScene(string sceneName) => LoadNetworkScene(sceneName);
 

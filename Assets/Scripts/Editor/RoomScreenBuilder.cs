@@ -40,7 +40,6 @@ namespace OverCleaning.EditorTools
             TMP_Text playerList = UIBuilder.CreateLabel(panel, "PlayerList", "참가자를 불러오는 중...", 32f, 220f);
             playerList.alignment = TextAlignmentOptions.TopLeft;
 
-            Button startButton = UIBuilder.CreateButton(panel, "StartGameButton", "게임 시작");
             Button leaveButton = UIBuilder.CreateButton(panel, "LeaveButton", "나가기");
 
             // 룸 패널보다 나중에 만들어야 모달이 그 위에 그려진다.
@@ -48,7 +47,7 @@ namespace OverCleaning.EditorTools
 
             UIBuilder.CreateEventSystem();
             SpawnerBuilder.CreateIfMissing();
-            AssignReferences(roomScreen, roomCode, copyButton, playerList, startButton, leaveButton);
+            AssignReferences(roomScreen, roomCode, copyButton, playerList, leaveButton);
 
             Undo.RegisterCreatedObjectUndo(canvas.gameObject, "Build Room Screen UI");
             EditorSceneManager.MarkSceneDirty(roomScreen.gameObject.scene);
@@ -57,13 +56,12 @@ namespace OverCleaning.EditorTools
         }
 
         private static void AssignReferences(RoomScreen roomScreen, TMP_Text roomCode, Button copyButton,
-            TMP_Text playerList, Button startButton, Button leaveButton)
+            TMP_Text playerList, Button leaveButton)
         {
             SerializedObject serialized = new SerializedObject(roomScreen);
             serialized.FindProperty("_roomCodeText").objectReferenceValue = roomCode;
             serialized.FindProperty("_copyCodeButton").objectReferenceValue = copyButton;
             serialized.FindProperty("_playerListText").objectReferenceValue = playerList;
-            serialized.FindProperty("_startGameButton").objectReferenceValue = startButton;
             serialized.FindProperty("_leaveButton").objectReferenceValue = leaveButton;
             serialized.ApplyModifiedPropertiesWithoutUndo();
         }

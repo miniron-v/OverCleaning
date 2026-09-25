@@ -9,7 +9,8 @@ using UnityEngine.UI;
 namespace OverCleaning.Network
 {
     /// <summary>
-    /// 대기방. 방 코드와 참가자 목록을 보여주고, 호스트만 게임을 시작할 수 있다.
+    /// 대기방. 방 코드와 참가자 목록을 보여준다.
+    /// 스테이지 시작은 맵 선택 오브젝트로 여는 단계 선택(StageSelection)이 맡는다.
     /// </summary>
     public sealed class RoomScreen : MonoBehaviour
     {
@@ -19,7 +20,6 @@ namespace OverCleaning.Network
         [SerializeField] private TMP_Text _roomCodeText;
         [SerializeField] private TMP_Text _playerListText;
         [SerializeField] private Button _copyCodeButton;
-        [SerializeField] private Button _startGameButton;
         [SerializeField] private Button _leaveButton;
 
         private ISession _session;
@@ -43,7 +43,6 @@ namespace OverCleaning.Network
             }
 
             _copyCodeButton.onClick.AddListener(CopyCode);
-            _startGameButton.onClick.AddListener(StartGame);
             _leaveButton.onClick.AddListener(() => _ = LeaveAsync());
 
             _session.PlayerJoined += OnPlayerChanged;
@@ -64,7 +63,6 @@ namespace OverCleaning.Network
         private void Refresh()
         {
             _roomCodeText.text = $"방 코드: {_session.Code}";
-            _startGameButton.gameObject.SetActive(_session.IsHost);
             _playerListText.text = BuildPlayerList();
         }
 
@@ -101,12 +99,6 @@ namespace OverCleaning.Network
             yield return new WaitForSeconds(1f);
             _roomCodeText.text = $"방 코드: {_session.Code}";
             _copyFeedback = null;
-        }
-
-        private void StartGame()
-        {
-            // 호스트가 씬을 바꾸면 Netcode가 참가자들의 씬도 함께 옮긴다.
-            GameSession.LoadGameScene();
         }
 
         private async System.Threading.Tasks.Task LeaveAsync()
