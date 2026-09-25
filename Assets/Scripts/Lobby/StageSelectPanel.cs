@@ -8,6 +8,9 @@ namespace OverCleaning.Lobby
     /// <summary>
     /// 단계 선택 화면. StageSelection의 상태를 그대로 그리기만 하고, 버튼은 요청으로 넘긴다.
     /// 주도권이 없는 사람도 같은 화면을 보지만 시작 버튼 말고는 버튼이 보이지 않는다.
+    ///
+    /// 최소화는 보는 사람마다 따로 정한다. 줄이면 오른쪽 위에 작은 막대만 남고
+    /// 모달이 사라져 뒤의 룸 UI(나가기 등)를 누를 수 있다.
     /// </summary>
     public sealed class StageSelectPanel : MonoBehaviour
     {
@@ -20,6 +23,7 @@ namespace OverCleaning.Lobby
 
         [Header("상단")]
         [SerializeField] private TMP_Text _controllerText;
+        [SerializeField] private Button _minimizeButton;
         [SerializeField] private Button _closeButton;
 
         [Header("스테이지")]
@@ -36,14 +40,27 @@ namespace OverCleaning.Lobby
         [SerializeField] private Button _nextButton;
         [SerializeField] private Button _startButton;
 
+        [Header("최소화")]
+        [Tooltip("최소화했을 때만 보이는 막대. 모달 밖에 두어야 뒤를 가리지 않는다.")]
+        [SerializeField] private GameObject _minimizedRoot;
+        [SerializeField] private TMP_Text _minimizedStageNameText;
+        [SerializeField] private TMP_Text[] _minimizedStarTexts;
+        [SerializeField] private Button _maximizeButton;
+
         [Header("색")]
         [SerializeField] private Color _filledStarColor = new Color(1f, 0.82f, 0.2f, 1f);
         [SerializeField] private Color _emptyStarColor = new Color(1f, 1f, 1f, 0.2f);
         [SerializeField] private Color _emptyThumbnailColor = new Color(0.3f, 0.32f, 0.36f, 1f);
 
+        private bool _isMinimized;
+        private bool _wasOpen;
+
         private void Awake()
         {
             _modalRoot.SetActive(false);
+            _minimizedRoot.SetActive(false);
+            _minimizeButton.onClick.AddListener(() => SetMinimized(true));
+            _maximizeButton.onClick.AddListener(() => SetMinimized(false));
             if (_selection == null)
             {
                 Debug.LogError("StageSelectPanel에 StageSelection이 지정되어 있지 않습니다.", this);
@@ -72,7 +89,13 @@ namespace OverCleaning.Lobby
         private void Refresh()
         {
             bool isOpen = _selection != null && _selection.IsOpen;
-            _modalRoot.SetActive(isOpen);
+            // 새로 열릴 때는 이전에 줄여 두었더라도 크게 보여준다.
+            if (isOpen && !_wasOpen)
+                _isMinimized = false;
+            _wasOpen = isOpen;
+
+            _modalRoot.SetActive(isOpen && !_isMinimized);
+            _minimizedRoot.SetActive(isOpen && _isMinimized);
             if (!isOpen)
                 return;
 
@@ -97,6 +120,7 @@ namespace OverCleaning.Lobby
         {
             _stageNumberText.text = stage != null ? $"STAGE {stage.Number}" : string.Empty;
             _stageNameText.text = stage != null ? stage.DisplayName : string.Empty;
+            _minimizedStageNameText.text = _stageNameText.text;
             _goalText.text = stage != null ? $"목표: {stage.Goal}" : string.Empty;
 
             Sprite thumbnail = stage != null ? stage.Thumbnail : null;
@@ -105,11 +129,23 @@ namespace OverCleaning.Lobby
             _thumbnailPlaceholder.SetActive(thumbnail == null);
 
             int stars = StageProgress.GetStars(stage);
-            for (int index = 0; index < _starTexts.Length; index++)
+            ShowStars(_starTexts, stars);
+            ShowStars(_minimizedStarTexts, stars);
+        }
+
+        private void ShowStars(TMP_Text[] starTexts, int stars)
+        {
+            for (int index = 0; index < starTexts.Length; index++)
             {
-                _starTexts[index].text = StarCharacter;
-                _starTexts[index].color = index < stars ? _filledStarColor : _emptyStarColor;
+                starTexts[index].text = StarCharacter;
+                starTexts[index].color = index < stars ? _filledStarColor : _emptyStarColor;
             }
+        }
+
+        private void SetMinimized(bool minimized)
+        {
+            _isMinimized = minimized;
+            Refresh();
         }
 
         private string GetControllerName()
