@@ -18,6 +18,7 @@ GameObject:
   - component: {fileID: 4397327354441735992}
   - component: {fileID: 3018705133920124144}
   - component: {fileID: 6517692181682538664}
+  - component: {fileID: 5129847362018475903}
   m_Layer: 0
   m_Name: Player
   m_TagString: Untagged
@@ -240,7 +241,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d5a57f767e5e46a458fc5d3c628d0cbb, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Unity.Netcode.Runtime::Unity.Netcode.NetworkObject
-  GlobalObjectIdHash: 0
+  GlobalObjectIdHash: 3049870723
   InScenePlacedSourceGlobalObjectIdHash: 0
   m_InScenePlacedDisabledByDefault: 0
   DeferredDespawnTick: 0
@@ -318,8 +319,26 @@ MonoBehaviour:
   - {fileID: 1689613411759416688}
   - {fileID: 1447354260286792351}
   - {fileID: 1453705570175810710}
+  - {fileID: 5129847362018475903}
   _playerInput: {fileID: 7708536723614985372}
   _keyShuffle: {fileID: 1453705570175810710}
+--- !u!114 &5129847362018475903
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1868286105046901289}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ec9d4f80c57017edde4f57bf1d3f2532, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::OverCleaning.Interaction.PlayerInteractor
+  _playerInput: {fileID: 7708536723614985372}
+  _interactionRadius: 1.5
+  _interactableLayers:
+    serializedVersion: 2
+    m_Bits: 4294967295
 --- !u!1 &8402172145816461381
 GameObject:
   m_ObjectHideFlags: 0

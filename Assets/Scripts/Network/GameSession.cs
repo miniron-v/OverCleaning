@@ -15,7 +15,6 @@ namespace OverCleaning.Network
         public const int MaxPlayers = 4;
         public const string StartSceneName = "Start";
         public const string RoomSceneName = "Room";
-        public const string GameSceneName = "DustCleaningTest";
 
         private const string NicknameProperty = "nickname";
 
@@ -57,9 +56,10 @@ namespace OverCleaning.Network
         }
 
         /// <summary>
-        /// 호스트만 호출한다. Netcode의 씬 관리가 참가자들의 씬도 함께 옮긴다.
+        /// 고른 스테이지의 씬으로 전원을 옮긴다. 호스트만 호출한다.
+        /// Netcode의 씬 관리가 참가자들의 씬도 함께 옮긴다.
         /// </summary>
-        public static void LoadGameScene() => LoadNetworkScene(GameSceneName);
+        public static void LoadStageScene(string sceneName) => LoadNetworkScene(sceneName);
 
         /// <summary>
         /// 룸으로 이동한다. 방에 처음 들어갈 때와 게임이 끝난 뒤 모두 쓴다.
@@ -116,5 +116,8 @@ namespace OverCleaning.Network
                 return property.Value;
             return string.Empty;
         }
+
+        /// <summary>이 기기 플레이어의 닉네임. 세션이 없으면 빈 문자열이다.</summary>
+        public static string LocalNickname => Current != null ? GetNickname(Current.CurrentPlayer) : string.Empty;
     }
 }

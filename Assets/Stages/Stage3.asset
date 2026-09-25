@@ -1,0 +1,19 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 95f73b7016ca265b94d3f1b3b57cb99a, type: 3}
+  m_Name: Stage3
+  m_EditorClassIdentifier: Assembly-CSharp::OverCleaning.Stages.StageDefinition
+  _number: 3
+  _displayName: 창고 정리
+  _thumbnail: {fileID: 0}
+  _sceneName: DustCleaningTest
+  _goal: 청소기를 내려놓지 않고 모든 먼지 치우기

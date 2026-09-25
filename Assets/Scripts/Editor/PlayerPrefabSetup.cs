@@ -1,5 +1,6 @@
 using OverCleaning.InGame;
 using OverCleaning.Input;
+using OverCleaning.Interaction;
 using OverCleaning.Network;
 // PlayerMovement는 네임스페이스 없이 전역에 선언되어 있어 별도 using이 없다.
 using Unity.Netcode;
@@ -60,6 +61,9 @@ namespace OverCleaning.EditorTools
                 transformSync.SyncScaleZ = false;
             }
 
+            if (root.GetComponent<PlayerInteractor>() == null)
+                root.AddComponent<PlayerInteractor>();
+
             NetworkPlayer networkPlayer = root.GetComponent<NetworkPlayer>();
             if (networkPlayer == null)
                 networkPlayer = root.AddComponent<NetworkPlayer>();
@@ -75,6 +79,7 @@ namespace OverCleaning.EditorTools
                 root.GetComponent<PlayerMovement>(),
                 root.GetComponent<PlayerVacuum>(),
                 root.GetComponent<KeyShuffleController>(),
+                root.GetComponent<PlayerInteractor>(),
             };
 
             behaviours.arraySize = ownerOnly.Length;
