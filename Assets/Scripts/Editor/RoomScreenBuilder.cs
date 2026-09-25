@@ -43,6 +43,9 @@ namespace OverCleaning.EditorTools
             Button startButton = UIBuilder.CreateButton(panel, "StartGameButton", "게임 시작");
             Button leaveButton = UIBuilder.CreateButton(panel, "LeaveButton", "나가기");
 
+            // 룸 패널보다 나중에 만들어야 모달이 그 위에 그려진다.
+            StageSelectBuilder.Build(canvas);
+
             UIBuilder.CreateEventSystem();
             SpawnerBuilder.CreateIfMissing();
             AssignReferences(roomScreen, roomCode, copyButton, playerList, startButton, leaveButton);
