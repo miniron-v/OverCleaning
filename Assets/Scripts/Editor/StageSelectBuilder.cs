@@ -22,6 +22,8 @@ namespace OverCleaning.EditorTools
         private const float ScreenMargin = 40f;
         private const float PanelWidth = 760f;
         private const float ArrowWidth = 64f;
+        private const float HeaderButtonWidth = 140f;
+        private const float MinimizedWidth = 480f;
 
         private static readonly Vector3 SelectObjectPosition = new Vector3(5.5f, 0f, 3f);
         private static readonly Color ModalBackground = new Color(0f, 0f, 0f, 0.35f);
@@ -118,8 +120,10 @@ namespace OverCleaning.EditorTools
             TMP_Text title = UIBuilder.CreateLabel(header, "Title", "단계 선택", 44f, 64f);
             title.alignment = TextAlignmentOptions.Left;
             title.GetComponent<LayoutElement>().flexibleWidth = 1f;
+            Button minimizeButton = UIBuilder.CreateButton(header, "MinimizeButton", "최소화");
+            SetFixedWidth(minimizeButton.gameObject, HeaderButtonWidth);
             Button closeButton = UIBuilder.CreateButton(header, "CloseButton", "닫기");
-            SetFixedWidth(closeButton.gameObject, 140f);
+            SetFixedWidth(closeButton.gameObject, HeaderButtonWidth);
 
             TMP_Text controller = UIBuilder.CreateLabel(panel, "Controller", "OO 님이 고르는 중", 28f, 40f);
             controller.alignment = TextAlignmentOptions.Left;
@@ -132,10 +136,14 @@ namespace OverCleaning.EditorTools
             Button previousButton = CreateArrow(panel, "PreviousButton", "<", 0f);
             Button nextButton = CreateArrow(panel, "NextButton", ">", 1f);
 
+            // 모달 밖에 두어야 줄였을 때 뒤의 룸 UI를 가리지 않는다.
+            MinimizedBar minimizedBar = CreateMinimizedBar(screenObject.transform);
+
             SerializedObject serialized = new SerializedObject(screenObject.GetComponent<StageSelectPanel>());
             serialized.FindProperty("_selection").objectReferenceValue = selection;
             serialized.FindProperty("_modalRoot").objectReferenceValue = modal;
             serialized.FindProperty("_controllerText").objectReferenceValue = controller;
+            serialized.FindProperty("_minimizeButton").objectReferenceValue = minimizeButton;
             serialized.FindProperty("_closeButton").objectReferenceValue = closeButton;
             serialized.FindProperty("_stageNumberText").objectReferenceValue = page.StageNumber;
             serialized.FindProperty("_stageNameText").objectReferenceValue = page.StageName;
@@ -147,14 +155,104 @@ namespace OverCleaning.EditorTools
             serialized.FindProperty("_nextButton").objectReferenceValue = nextButton;
             serialized.FindProperty("_startButton").objectReferenceValue = startButton;
 
-            SerializedProperty stars = serialized.FindProperty("_starTexts");
-            stars.arraySize = page.Stars.Length;
-            for (int index = 0; index < page.Stars.Length; index++)
-                stars.GetArrayElementAtIndex(index).objectReferenceValue = page.Stars[index];
+            serialized.FindProperty("_minimizedRoot").objectReferenceValue = minimizedBar.Root;
+            serialized.FindProperty("_minimizedStageNameText").objectReferenceValue = minimizedBar.StageName;
+            serialized.FindProperty("_maximizeButton").objectReferenceValue = minimizedBar.MaximizeButton;
+            AssignArray(serialized.FindProperty("_starTexts"), page.Stars);
+            AssignArray(serialized.FindProperty("_minimizedStarTexts"), minimizedBar.Stars);
             serialized.ApplyModifiedPropertiesWithoutUndo();
 
             // 편집 중에는 모양을 보며 고칠 수 있게 켜 두고, 실행하면 StageSelectPanel이 끈다.
+            // 줄인 막대는 펼친 패널의 머리 부분과 겹치므로 꺼 둔다. 고칠 때만 켜서 본다.
             modal.SetActive(true);
+            minimizedBar.Root.SetActive(false);
+        }
+
+        private static void AssignArray(SerializedProperty property, Object[] values)
+        {
+            property.arraySize = values.Length;
+            for (int index = 0; index < values.Length; index++)
+                property.GetArrayElementAtIndex(index).objectReferenceValue = values[index];
+        }
+
+        private readonly struct MinimizedBar
+        {
+            public readonly GameObject Root;
+            public readonly TMP_Text StageName;
+            public readonly TMP_Text[] Stars;
+            public readonly Button MaximizeButton;
+
+            public MinimizedBar(GameObject root, TMP_Text stageName, TMP_Text[] stars, Button maximizeButton)
+            {
+                Root = root;
+                StageName = stageName;
+                Stars = stars;
+                MaximizeButton = maximizeButton;
+            }
+        }
+
+        /// <summary>
+        /// 줄였을 때 오른쪽 위에 남는 막대. 맵 이름과 별, 최대화 버튼만 둔다.
+        /// 여백은 펼친 패널과 같게 맞춘다.
+        /// </summary>
+        private static MinimizedBar CreateMinimizedBar(Transform parent)
+        {
+            GameObject barObject = new GameObject("MinimizedBar",
+                typeof(Image), typeof(HorizontalLayoutGroup), typeof(ParentWidthLimiter));
+            barObject.transform.SetParent(parent, false);
+            barObject.GetComponent<Image>().color = UIBuilder.DialogBackground;
+
+            RectTransform rect = barObject.GetComponent<RectTransform>();
+            rect.anchorMin = new Vector2(1f, 1f);
+            rect.anchorMax = new Vector2(1f, 1f);
+            rect.pivot = new Vector2(1f, 1f);
+            rect.sizeDelta = new Vector2(MinimizedWidth, 140f);
+            rect.anchoredPosition = new Vector2(-ScreenMargin, -ScreenMargin);
+
+            HorizontalLayoutGroup layout = barObject.GetComponent<HorizontalLayoutGroup>();
+            layout.padding = new RectOffset(24, 24, 20, 20);
+            layout.spacing = 16f;
+            layout.childAlignment = TextAnchor.MiddleLeft;
+            layout.childControlWidth = true;
+            layout.childControlHeight = true;
+            layout.childForceExpandWidth = false;
+            layout.childForceExpandHeight = true;
+
+            SerializedObject limiter = new SerializedObject(barObject.GetComponent<ParentWidthLimiter>());
+            limiter.FindProperty("_preferredWidth").floatValue = MinimizedWidth;
+            limiter.FindProperty("_maxParentRatio").floatValue = 0.5f;
+            limiter.ApplyModifiedPropertiesWithoutUndo();
+
+            // 이름과 별을 위아래로 쌓고, 남는 폭을 모두 쓴다.
+            GameObject infoObject = new GameObject("Info", typeof(VerticalLayoutGroup), typeof(LayoutElement));
+            infoObject.transform.SetParent(barObject.transform, false);
+            infoObject.GetComponent<LayoutElement>().flexibleWidth = 1f;
+            VerticalLayoutGroup infoLayout = infoObject.GetComponent<VerticalLayoutGroup>();
+            infoLayout.spacing = 4f;
+            infoLayout.childAlignment = TextAnchor.MiddleLeft;
+            infoLayout.childControlWidth = true;
+            infoLayout.childControlHeight = true;
+            infoLayout.childForceExpandWidth = true;
+            infoLayout.childForceExpandHeight = false;
+            RectTransform info = infoObject.GetComponent<RectTransform>();
+
+            TMP_Text stageName = UIBuilder.CreateLabel(info, "StageName", "스테이지 이름", 34f, 44f);
+            stageName.alignment = TextAlignmentOptions.Left;
+
+            RectTransform starRow = UIBuilder.CreateRow(info, "Stars", 44f);
+            starRow.GetComponent<HorizontalLayoutGroup>().spacing = 4f;
+            TMP_Text[] stars = new TMP_Text[StageDefinition.MaxStars];
+            for (int index = 0; index < stars.Length; index++)
+            {
+                stars[index] = UIBuilder.CreateLabel(starRow, $"Star {index + 1}", "★", 36f, 44f);
+                SetFixedWidth(stars[index].gameObject, 44f);
+            }
+
+            Button maximizeButton = UIBuilder.CreateButton(barObject.GetComponent<RectTransform>(),
+                "MaximizeButton", "최대화");
+            SetFixedWidth(maximizeButton.gameObject, HeaderButtonWidth);
+
+            return new MinimizedBar(barObject, stageName, stars, maximizeButton);
         }
 
         /// <summary>
