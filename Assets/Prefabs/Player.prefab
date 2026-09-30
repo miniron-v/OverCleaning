@@ -355,7 +355,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::OverCleaning.InGame.PlayerModelFacing
   _model: {fileID: 3671202309281163635}
-  _turnSpeed: 720
+  _turnSpeed: 1080
 --- !u!1001 &3852832169226489496
 PrefabInstance:
   m_ObjectHideFlags: 0
