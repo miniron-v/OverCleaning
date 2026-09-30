@@ -17,14 +17,7 @@ namespace OverCleaning.InGame
         [Tooltip("먼지통을 다 비우기까지 키를 누르고 있어야 하는 시간(초).")]
         [Min(0.1f)] [SerializeField] private float _emptyDuration = 2f;
 
-        /// <summary>
-        /// 자기 캐릭터에서만 켜지므로 한 클라이언트에 하나뿐이다.
-        /// 청소기가 들 사람을 알아내는 유일한 통로다. Rigidbody만 내어주어 서로를 붙들지 않는다.
-        /// </summary>
-        public static Rigidbody LocalBody { get; private set; }
-
         private PlayerMovement _playerMovement;
-        private Rigidbody _body;
         private Camera _statusCamera;
         private Vacuum _heldVacuum;
         private bool _emptyKeyHeld;
@@ -35,24 +28,18 @@ namespace OverCleaning.InGame
         private void Awake()
         {
             _playerMovement = GetComponent<PlayerMovement>();
-            _body = GetComponent<Rigidbody>();
         }
 
         private void OnDisable()
         {
-            if (LocalBody == _body)
-                LocalBody = null;
             StopEmptying();
             _emptyKeyHeld = false;
         }
 
         private void Update()
         {
-            // 이 컴포넌트가 돌고 있다는 것 자체가 자기 캐릭터라는 뜻이다. 남의 캐릭터도
-            // 만들어지는 순간에는 잠깐 켜져 있어 자리를 가로채므로, 매 프레임 되찾는다.
-            LocalBody = _body;
-
-            // 들린 청소기는 내 자식이다. 들고 내려놓을 때마다 서로 알려주지 않아도 된다.
+            // 서버가 들린 청소기를 내 자식으로 붙여 준다. 남이 든 청소기는 그 사람 밑에 있으므로
+            // 여기서 찾히지 않는다. 그래서 따로 누가 들었는지 물어볼 필요가 없다.
             _heldVacuum = GetComponentInChildren<Vacuum>();
         }
 
