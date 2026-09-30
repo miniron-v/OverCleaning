@@ -601,6 +601,67 @@ namespace OverCleaning.InGame
             return removedCount;
         }
 
+        /// <summary>
+        /// 쓰레기통이 넘어졌을 때처럼 먼지를 그 자리 주변 바닥에 다시 흩뿌리고 실제로 놓은 수를 반환합니다.
+        /// 모아둔 먼지를 되돌리는 것이라 처음 만든 수보다 많아질 일은 없지만, 자리를 잡지 못한
+        /// 먼지는 그냥 사라집니다.
+        /// </summary>
+        public int SpillDust(Vector3 center, float radius, int count)
+        {
+            if (_particles == null || radius <= 0f || count <= 0)
+                return 0;
+
+            int spilledCount = 0;
+            for (int index = 0; index < count && RemainingDustCount < _particles.Length; index++)
+            {
+                float size = Random.Range(_dustSizeRange.x, _dustSizeRange.y);
+                if (!TryFindSpillPosition(center, radius, size, out Vector3 position))
+                    continue;
+
+                _particles[RemainingDustCount] = CreateParticle(position, size);
+                _textureIndices[RemainingDustCount] = Random.Range(0, _particleSystems.Length);
+                // 흡입되어 비었던 자리를 다시 쓰므로 남은 흡입 상태가 없는지 확인합니다.
+                _suctionStates[RemainingDustCount] = default;
+                RemainingDustCount++;
+                spilledCount++;
+            }
+
+            if (spilledCount > 0)
+                UpdateRenderedParticles();
+            return spilledCount;
+        }
+
+        private bool TryFindSpillPosition(Vector3 center, float radius, float size, out Vector3 position)
+        {
+            // 회전한 사각 파티클의 모서리까지 포함하는 보수적인 검사 범위입니다.
+            float halfExtent = size * Mathf.Sqrt(2f) * 0.5f;
+            float inset = halfExtent + _edgeMargin;
+            position = default;
+
+            for (int attempt = 0; attempt < PlacementAttemptsPerParticle; attempt++)
+            {
+                Vector2 offset = Random.insideUnitCircle * radius;
+                Vector3 candidate = center + new Vector3(offset.x, 0f, offset.y);
+                // 쏟아진 자리가 어느 바닥인지는 알 수 없으므로 후보마다 찾습니다.
+                foreach (Collider floor in _activeFloors)
+                {
+                    if (!TryGetFloorPoint(floor, candidate, out Vector3 surface))
+                        continue;
+                    if (!IsFootprintSupported(floor, surface, inset))
+                        continue;
+
+                    Vector3 point = surface + Vector3.up * SurfaceOffset;
+                    if (OverlapsObstacle(floor, point, halfExtent))
+                        continue;
+
+                    position = point;
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         private void OnValidate() => ValidateSettings();
 
         private void ValidateSettings()
