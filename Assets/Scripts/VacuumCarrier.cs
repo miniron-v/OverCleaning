@@ -80,7 +80,7 @@ namespace OverCleaning.InGame
             if (_emptyElapsedTime < _emptyDuration)
                 return;
 
-            _heldVacuum.TryEmptyDustBin();
+            _heldVacuum.RequestEmptyDustBin();
             StopEmptying();
         }
 

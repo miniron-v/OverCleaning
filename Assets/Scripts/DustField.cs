@@ -39,6 +39,9 @@ namespace OverCleaning.InGame
         private float _totalFloorArea;
         private ParticleSystem[] _particleSystems;
         private int[] _textureIndices;
+
+        /// <summary>먼지마다 붙는 번호. 자리가 바뀌어도 따라다녀 기기 사이에서 같은 먼지를 가리킨다.</summary>
+        private int[] _dustIds;
         private ParticleSystem.Particle[] _renderBuffer;
         private ParticleSystem.Particle[] _particles;
         private Material[] _runtimeMaterials;
@@ -289,6 +292,7 @@ namespace OverCleaning.InGame
         {
             _particles = new ParticleSystem.Particle[_dustCount];
             _textureIndices = new int[_dustCount];
+            _dustIds = new int[_dustCount];
             _renderBuffer = new ParticleSystem.Particle[_dustCount];
             _suctionStates = new SuctionState[_dustCount];
             RemainingDustCount = 0;
@@ -299,6 +303,9 @@ namespace OverCleaning.InGame
                 {
                     _particles[RemainingDustCount] = CreateParticle(position, size);
                     _textureIndices[RemainingDustCount] = Random.Range(0, _particleSystems.Length);
+                    // 만든 순서를 그대로 이름으로 쓴다. 같은 시드로 만들었으므로 모두에게서 같은
+                    // 먼지가 같은 번호를 받는다. 지울 때 자리가 바뀌어도 번호는 따라다닌다.
+                    _dustIds[RemainingDustCount] = RemainingDustCount;
                     RemainingDustCount++;
                 }
             }
@@ -463,7 +470,7 @@ namespace OverCleaning.InGame
                 float progress = Mathf.Clamp01(suction.ElapsedTime / suction.Duration);
                 if (progress >= 1f)
                 {
-                    suction.Source.CompleteDustSuction();
+                    suction.Source.CompleteDustSuction(_dustIds[index]);
                     _suctionStates[index] = default;
                     RemoveParticleAt(index);
                     continue;
@@ -486,6 +493,24 @@ namespace OverCleaning.InGame
             _particles[index].position = _suctionStates[index].StartPosition;
             _particles[index].startSize = _suctionStates[index].StartSize;
             _suctionStates[index] = default;
+        }
+
+        /// <summary>
+        /// 번호로 먼지 하나를 지운다. 빨아들인 사람이 아닌 기기에서 결과만 반영할 때 쓴다.
+        /// 빨리는 연출은 그 사람 화면에서만 보이고, 다른 화면에서는 그냥 사라진다.
+        /// </summary>
+        public void RemoveDustById(int dustId)
+        {
+            if (_particles == null)
+                return;
+            for (int index = 0; index < RemainingDustCount; index++)
+            {
+                if (_dustIds[index] != dustId)
+                    continue;
+                RemoveParticleAt(index);
+                UpdateRenderedParticles();
+                return;
+            }
         }
 
         public void CancelSuctionFor(Vacuum source)
@@ -525,6 +550,7 @@ namespace OverCleaning.InGame
             RemainingDustCount--;
             _particles[index] = _particles[RemainingDustCount];
             _textureIndices[index] = _textureIndices[RemainingDustCount];
+            _dustIds[index] = _dustIds[RemainingDustCount];
             _suctionStates[index] = _suctionStates[RemainingDustCount];
             _suctionStates[RemainingDustCount] = default;
         }

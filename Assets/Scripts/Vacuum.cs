@@ -45,9 +45,18 @@ namespace OverCleaning.InGame
         private readonly NetworkVariable<float> _aimYaw =
             new NetworkVariable<float>(writePerm: NetworkVariableWritePermission.Owner);
 
+        /// <summary>서버가 정한다. 먼지통에 든 확정 수량. 모두가 같은 숫자를 본다.</summary>
+        private readonly NetworkVariable<int> _storedDust = new NetworkVariable<int>();
+
         private BoxCollider _bodyCollider;
-        private DustBin _dustBin;
         private MaterialPropertyBlock _nozzleProperties;
+
+        /// <summary>
+        /// 흡입 연출이 끝나기를 기다리는 수량. 빨아들이는 사람의 기기에만 있다.
+        /// 확정 수량은 서버에서 오므로, 도착하기 전에 용량을 넘겨 빨지 않도록 이것만 따로 센다.
+        /// </summary>
+        private int _reservedDust;
+
         private readonly Collider[] _overlapBuffer = new Collider[32];
         private readonly RaycastHit[] _castBuffer = new RaycastHit[32];
         private Transform _groundParent;
@@ -64,10 +73,11 @@ namespace OverCleaning.InGame
         public bool IsRunning { get; private set; }
         public Vector3 SuctionPosition => _suctionPoint.position;
         public float SuctionRadius => _suctionRadius;
-        public int StoredDustCount => _dustBin.StoredCount;
-        public int ReservedDustCount => _dustBin.ReservedCount;
-        public int DustCapacity => _dustBin.Capacity;
-        public bool IsFull => _dustBin.IsFull;
+        public int StoredDustCount => _storedDust.Value;
+        public int ReservedDustCount => _reservedDust;
+        public int DustCapacity => _dustCapacity;
+        public bool IsFull => _storedDust.Value >= _dustCapacity;
+        private bool HasDustSpace => _storedDust.Value + _reservedDust < _dustCapacity;
 
         public bool CanInteract => isActiveAndEnabled;
         public string Prompt => IsHeldByLocalPlayer ? "청소기 내려놓기" : "청소기 들기";
@@ -75,7 +85,6 @@ namespace OverCleaning.InGame
         private void Awake()
         {
             _bodyCollider = GetComponent<BoxCollider>();
-            _dustBin = new DustBin(_dustCapacity);
             _nozzleProperties = new MaterialPropertyBlock();
             _groundParent = transform.parent;
 
@@ -93,6 +102,7 @@ namespace OverCleaning.InGame
         {
             _holderClientId.OnValueChanged += OnHolderChanged;
             _restPosition.OnValueChanged += OnRestPositionChanged;
+            _storedDust.OnValueChanged += OnStoredDustChanged;
             if (IsServer)
             {
                 _restPosition.Value = transform.position;
@@ -107,6 +117,7 @@ namespace OverCleaning.InGame
         {
             _holderClientId.OnValueChanged -= OnHolderChanged;
             _restPosition.OnValueChanged -= OnRestPositionChanged;
+            _storedDust.OnValueChanged -= OnStoredDustChanged;
             if (IsServer && NetworkManager != null)
                 NetworkManager.OnClientDisconnectCallback -= OnClientDisconnected;
         }
@@ -286,16 +297,59 @@ namespace OverCleaning.InGame
                 _trashCan.CanReceiveDust(HandPosition, _holderBody);
         }
 
-        /// <summary>쓰레기통에 먼지를 넘기고 먼지통을 비운다.</summary>
-        public bool TryEmptyDustBin()
+        /// <summary>
+        /// 쓰레기통에 먼지를 넘기고 먼지통을 비우도록 서버에 요청한다.
+        /// 다 비웠는지는 서버가 내려주는 수량으로 알 수 있으므로 결과를 돌려주지 않는다.
+        /// </summary>
+        public void RequestEmptyDustBin()
         {
-            if (!CanEmptyDustBin() || !_trashCan.TryReceiveDust(HandPosition, _holderBody, StoredDustCount))
-                return false;
+            if (IsSpawned && IsHeldByLocalPlayer)
+                RequestEmptyDustBinRpc();
+        }
 
-            _dustBin.Empty();
-            _suctionElapsedTime = 0f;
+        [Rpc(SendTo.Server)]
+        private void RequestEmptyDustBinRpc(RpcParams rpcParams = default)
+        {
+            // 들고 있지 않은 사람이 보낸 요청은 버린다.
+            if (_holderClientId.Value != rpcParams.Receive.SenderClientId)
+                return;
+            if (!CanEmptyDustBin() || _trashCan == null)
+                return;
+            if (!_trashCan.TryReceiveDust(HandPosition, _holderBody, _storedDust.Value))
+                return;
+
+            _storedDust.Value = 0;
+        }
+
+        /// <summary>
+        /// 흡입 연출이 끝난 먼지를 서버에 알린다. 빨아들인 사람의 기기에서만 불린다.
+        /// 서버가 수량을 올리고 나머지 기기에 그 먼지를 지우라고 전한다.
+        /// </summary>
+        [Rpc(SendTo.Server)]
+        private void ReportDustRemovedRpc(int dustId, RpcParams rpcParams = default)
+        {
+            if (_holderClientId.Value != rpcParams.Receive.SenderClientId)
+                return;
+
+            if (_storedDust.Value < _dustCapacity)
+                _storedDust.Value++;
+            RemoveDustRpc(dustId);
+        }
+
+        /// <summary>빨아들인 사람은 이미 지웠으므로 그 사람만 빼고 보낸다.</summary>
+        [Rpc(SendTo.NotOwner)]
+        private void RemoveDustRpc(int dustId)
+        {
+            if (_dustField != null)
+                _dustField.RemoveDustById(dustId);
+        }
+
+        private void OnStoredDustChanged(int previousCount, int newCount)
+        {
+            if (newCount == 0)
+                _suctionElapsedTime = 0f;
+            UpdateRunning();
             UpdateNozzleColor();
-            return true;
         }
 
         /// <summary>먼지가 흡입구에서 보이는가. 벽 반대편의 먼지는 빨리지 않는다.</summary>
@@ -322,18 +376,23 @@ namespace OverCleaning.InGame
 
         internal bool TryReserveDust()
         {
-            return IsRunning && _dustBin.TryReserve();
+            if (!IsRunning || !HasDustSpace)
+                return false;
+            _reservedDust++;
+            return true;
         }
 
         internal void ReleaseDustReservation()
         {
-            _dustBin.CancelReservation();
+            if (_reservedDust > 0)
+                _reservedDust--;
         }
 
-        internal void CompleteDustSuction()
+        internal void CompleteDustSuction(int dustId)
         {
-            _dustBin.CompleteReservation();
-            UpdateRunning();
+            ReleaseDustReservation();
+            // 수량을 직접 올리지 않는다. 서버가 확정해 모두에게 같은 숫자를 내려준다.
+            ReportDustRemovedRpc(dustId);
         }
 
         /// <summary>든 사람의 손 높이. 쓰레기통까지의 거리를 재는 기준이다.</summary>
@@ -343,7 +402,7 @@ namespace OverCleaning.InGame
         {
             // 먼지를 실제로 없애는 것은 든 사람의 기기에서만 한다. 각자 없애면 화면이 갈라진다.
             if (!IsOwner || !IsRunning || _dustField == null || !_dustField.isActiveAndEnabled ||
-                !_dustBin.HasSpace)
+                !HasDustSpace)
                 return;
 
             _suctionElapsedTime += Time.deltaTime;
