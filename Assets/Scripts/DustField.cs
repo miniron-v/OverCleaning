@@ -1,12 +1,16 @@
 using System.Collections.Generic;
+using Unity.Netcode;
 using UnityEngine;
 
 namespace OverCleaning.InGame
 {
-    public sealed class DustField : MonoBehaviour
+    public sealed class DustField : NetworkBehaviour
     {
         private const float SurfaceOffset = 0.02f;
         private const int PlacementAttemptsPerParticle = 20;
+
+        /// <summary>아직 서버가 시드를 정해주지 않았다는 뜻. 시드는 1 이상만 쓴다.</summary>
+        private const int UnsetSeed = 0;
 
         [Tooltip("Map/Floor 아래에서 먼지를 생성할 바닥 Collider만 등록하세요. 이름은 검사하지 않습니다.")]
         [SerializeField] private Collider[] _floors = new Collider[0];
@@ -54,8 +58,51 @@ namespace OverCleaning.InGame
         /// <summary>흡입 중인 먼지도 포함하며, 흡입구에 도착한 순간 감소합니다.</summary>
         public int RemainingDustCount { get; private set; }
 
+        /// <summary>
+        /// 먼지 배치를 정하는 시드. 서버가 정해 모두에게 내려보낸다.
+        /// 같은 시드로 만들면 각자 계산해도 똑같은 자리에 먼지가 놓인다.
+        /// 먼지 하나하나의 좌표를 보내지 않아도 되므로 트래픽이 들지 않는다.
+        /// </summary>
+        private readonly NetworkVariable<int> _seed = new NetworkVariable<int>();
+
+        private bool _isBuilt;
+
         private void Start()
         {
+            // 네트워크 없이 이 씬만 열어 확인하는 경우다. 혼자 보는 화면이라 시드를 맞출 상대가 없다.
+            if (NetworkManager.Singleton == null || !NetworkManager.Singleton.IsListening)
+                Build(NewSeed());
+        }
+
+        public override void OnNetworkSpawn()
+        {
+            if (IsServer)
+                _seed.Value = NewSeed();
+
+            if (_seed.Value != UnsetSeed)
+                Build(_seed.Value);
+            else
+                _seed.OnValueChanged += OnSeedChanged;
+        }
+
+        public override void OnNetworkDespawn()
+        {
+            _seed.OnValueChanged -= OnSeedChanged;
+        }
+
+        private void OnSeedChanged(int previousSeed, int newSeed)
+        {
+            if (newSeed != UnsetSeed)
+                Build(newSeed);
+        }
+
+        private static int NewSeed() => Random.Range(1, int.MaxValue);
+
+        private void Build(int seed)
+        {
+            if (_isBuilt)
+                return;
+
             ValidateSettings();
             Physics.SyncTransforms();
             CacheFloors();
@@ -66,7 +113,13 @@ namespace OverCleaning.InGame
             }
 
             ConfigureParticleSystems();
+
+            // 먼지 생성에만 시드를 먹인다. 다른 곳의 난수가 영향을 받지 않도록 원래 상태로 되돌린다.
+            Random.State previousState = Random.state;
+            Random.InitState(seed);
             GenerateDust();
+            Random.state = previousState;
+            _isBuilt = true;
         }
 
         private void CacheFloors()
@@ -208,8 +261,10 @@ namespace OverCleaning.InGame
             return texture;
         }
 
-        private void OnDestroy()
+        // NetworkBehaviour도 OnDestroy에서 정리할 것이 있으므로 가리지 않고 이어서 부른다.
+        public override void OnDestroy()
         {
+            base.OnDestroy();
             if (_runtimeMaterials != null)
             {
                 foreach (Material material in _runtimeMaterials)
