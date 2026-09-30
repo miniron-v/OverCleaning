@@ -88,6 +88,8 @@ namespace OverCleaning.InGame
         {
             if (IsHeld)
                 TryDrop();
+            else if (VacuumCarrier.LocalBody == null)
+                Debug.LogWarning("청소기를 들 사람을 찾지 못했습니다. Player 프리팹의 VacuumCarrier가 켜져 있는지 확인하세요.", this);
             else
                 TryPickUp(VacuumCarrier.LocalBody);
         }

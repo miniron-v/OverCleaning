@@ -178,58 +178,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 7db05aa2559a47dbae1b4c1fca950a32, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::OverCleaning.InGame.VacuumCarrier
-  _vacuumPivot: {fileID: 0}
-  _suctionPoint: {fileID: 0}
-  _nozzleRenderer: {fileID: 0}
-  _vacuumCollider: {fileID: 0}
-  _obstacleLayers:
-    serializedVersion: 2
-    m_Bits: 4294967295
-  _suctionRadius: 1
-  _dustField: {fileID: 0}
-  _suctionInterval: 0.25
-  _dustPerSuction: 5
-  _suctionDuration: 0.2
-  _dustCapacity: 100
-  _trashCan: {fileID: 0}
   _emptyDuration: 2
-  _emptyAction:
-    m_Name: Empty Dust Bin
-    m_Type: 1
-    m_ExpectedControlType: 
-    m_Id: fb73e248-1f5e-45ec-84d4-14021ffa4fd6
-    m_Processors: 
-    m_Interactions: 
-    m_SingletonActionBindings:
-    - m_Name: 
-      m_Id: 7470116c-2b59-48b3-a0ce-654741301511
-      m_Path: <Keyboard>/r
-      m_Interactions: 
-      m_Processors: 
-      m_Groups: 
-      m_Action: Empty Dust Bin
-      m_Flags: 0
-    m_Flags: 0
-    m_Priority: 0
-  _pickUpRadius: 1.5
-  _carryAction:
-    m_Name: Carry Vacuum
-    m_Type: 1
-    m_ExpectedControlType: 
-    m_Id: 65b66caf-49d8-4e6b-b1f2-882f6c3fe599
-    m_Processors: 
-    m_Interactions: 
-    m_SingletonActionBindings:
-    - m_Name: 
-      m_Id: 24abe6ec-2c51-4f37-a41c-b1bd56b13297
-      m_Path: <Keyboard>/e
-      m_Interactions: 
-      m_Processors: 
-      m_Groups: 
-      m_Action: Carry Vacuum
-      m_Flags: 0
-    m_Flags: 0
-    m_Priority: 0
 --- !u!114 &4397327354441735992
 MonoBehaviour:
   m_ObjectHideFlags: 0

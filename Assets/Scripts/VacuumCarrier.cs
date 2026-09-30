@@ -38,11 +38,6 @@ namespace OverCleaning.InGame
             _body = GetComponent<Rigidbody>();
         }
 
-        private void OnEnable()
-        {
-            LocalBody = _body;
-        }
-
         private void OnDisable()
         {
             if (LocalBody == _body)
@@ -53,6 +48,10 @@ namespace OverCleaning.InGame
 
         private void Update()
         {
+            // 이 컴포넌트가 돌고 있다는 것 자체가 자기 캐릭터라는 뜻이다. 남의 캐릭터도
+            // 만들어지는 순간에는 잠깐 켜져 있어 자리를 가로채므로, 매 프레임 되찾는다.
+            LocalBody = _body;
+
             // 들린 청소기는 내 자식이다. 들고 내려놓을 때마다 서로 알려주지 않아도 된다.
             _heldVacuum = GetComponentInChildren<Vacuum>();
         }
