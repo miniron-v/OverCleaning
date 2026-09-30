@@ -1389,6 +1389,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 2110000011}
+  - component: {fileID: 2110000012}
   m_Layer: 0
   m_Name: Walls
   m_TagString: Untagged
@@ -1423,6 +1424,18 @@ Transform:
   - {fileID: 2110020071}
   m_Father: {fileID: 1346105807}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &2110000012
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2110000010}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 457c5d1dd6fd478ca3a77591d77ea572, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::OverCleaning.InGame.WallFader
 --- !u!1 &2110010000
 GameObject:
   m_ObjectHideFlags: 0
