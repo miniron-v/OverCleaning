@@ -105,7 +105,10 @@ namespace OverCleaning.Lobby
                 UpdateDriver();
         }
 
-        /// <summary>운전석에 앉은 사람에게 소유권을 넘긴다. 비면 서버가 다시 갖는다. 서버에서만 쓴다.</summary>
+        /// <summary>
+        /// 운전석에 앉은 사람에게 소유권을 넘긴다. 비면 서버가 다시 갖는다. 서버에서만 쓴다.
+        /// 운전자가 끊겨도 차가 사라지지 않도록 NetworkObject의 Dont Destroy With Owner를 켜 둔다.
+        /// </summary>
         private void UpdateDriver()
         {
             if (_occupants.Count > 0)
