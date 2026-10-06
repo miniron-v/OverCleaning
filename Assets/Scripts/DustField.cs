@@ -666,6 +666,13 @@ namespace OverCleaning.InGame
                     continue;
 
                 _particles[RemainingDustCount] = CreateParticle(position, size);
+                if (fixedTextureIndex >= 0)
+                {
+                    // 지정한 모양은 제 색을 그대로 보여 준다. 바닥 먼지 색으로 물들이지 않는다.
+                    ParticleSystem.Particle particle = _particles[RemainingDustCount];
+                    particle.startColor = Color.white;
+                    _particles[RemainingDustCount] = particle;
+                }
                 _textureIndices[RemainingDustCount] = fixedTextureIndex >= 0
                     ? fixedTextureIndex
                     : Random.Range(0, _particleSystems.Length);
