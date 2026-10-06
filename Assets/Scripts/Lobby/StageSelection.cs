@@ -10,8 +10,8 @@ namespace OverCleaning.Lobby
     /// <summary>
     /// 대기방의 단계 선택 상태를 모든 클라이언트에 맞춘다.
     ///
-    /// 단계 선택을 연 사람이 주도권을 갖고, 그 사람만 스테이지를 넘기거나 시작할 수 있다.
-    /// 주도권이 있는 동안 모든 클라이언트에 단계 선택 화면이 열려 같은 스테이지를 본다.
+    /// 단계 선택을 연 사람이 주도권을 갖고, 그 사람만 시작할 수 있다.
+    /// 열 때 고른 스테이지로 고정되며, 주도권이 있는 동안 모든 클라이언트에 같은 화면이 열린다.
     ///
     /// 여는 방법(맵 선택 오브젝트, 버튼 등)은 이 클래스가 알지 못한다.
     /// 무엇이든 RequestOpen/RequestClose/ToggleControl만 부르면 된다.
@@ -65,14 +65,21 @@ namespace OverCleaning.Lobby
             StateChanged?.Invoke();
         }
 
-        /// <summary>주도권을 요청해 단계 선택을 연다. 이미 누가 쥐고 있으면 무시된다.</summary>
-        public void RequestOpen()
+        /// <summary>주도권을 요청해 그 스테이지로 단계 선택을 연다. 이미 누가 쥐고 있으면 무시된다.</summary>
+        public void RequestOpen(StageDefinition stage)
         {
             if (!IsSpawned || IsOpen)
                 return;
+            int stageIndex = _catalog != null ? _catalog.IndexOf(stage) : -1;
+            if (stageIndex < 0)
+            {
+                Debug.LogError($"스테이지 목록에 없는 스테이지입니다: {stage}", this);
+                return;
+            }
+
             FixedString64Bytes nickname = default;
             nickname.CopyFromTruncated(GameSession.LocalNickname);
-            ClaimControlRpc(nickname);
+            ClaimControlRpc(nickname, stageIndex);
         }
 
         /// <summary>주도권을 내려놓아 단계 선택을 닫는다. 주도권이 있을 때만 통한다.</summary>
@@ -82,20 +89,13 @@ namespace OverCleaning.Lobby
                 ReleaseControlRpc();
         }
 
-        /// <summary>주도권이 있으면 닫고, 비어 있으면 연다.</summary>
-        public void ToggleControl()
+        /// <summary>주도권이 있으면 닫고, 비어 있으면 그 스테이지로 연다.</summary>
+        public void ToggleControl(StageDefinition stage)
         {
             if (IsLocalController)
                 RequestClose();
             else
-                RequestOpen();
-        }
-
-        /// <summary>이전(-1) 또는 다음(+1) 스테이지를 본다.</summary>
-        public void RequestBrowse(int direction)
-        {
-            if (IsLocalController && direction != 0)
-                BrowseRpc(Math.Sign(direction));
+                RequestOpen(stage);
         }
 
         /// <summary>보고 있는 스테이지를 시작한다.</summary>
@@ -106,12 +106,13 @@ namespace OverCleaning.Lobby
         }
 
         [Rpc(SendTo.Server)]
-        private void ClaimControlRpc(FixedString64Bytes nickname, RpcParams rpcParams = default)
+        private void ClaimControlRpc(FixedString64Bytes nickname, int stageIndex, RpcParams rpcParams = default)
         {
-            if (_controllerClientId.Value != NoController)
+            if (_controllerClientId.Value != NoController || stageIndex < 0 || stageIndex >= StageCount)
                 return;
-            // 이름을 먼저 채워, 주도권이 바뀌었다는 알림을 받았을 때 이름이 비어 있지 않게 한다.
+            // 이름과 스테이지를 먼저 채워, 주도권이 바뀌었다는 알림을 받았을 때 비어 있지 않게 한다.
             _controllerNickname.Value = nickname;
+            _stageIndex.Value = stageIndex;
             _controllerClientId.Value = rpcParams.Receive.SenderClientId;
         }
 
@@ -120,14 +121,6 @@ namespace OverCleaning.Lobby
         {
             if (IsSender(rpcParams))
                 ClearController();
-        }
-
-        [Rpc(SendTo.Server)]
-        private void BrowseRpc(int direction, RpcParams rpcParams = default)
-        {
-            if (!IsSender(rpcParams) || StageCount == 0)
-                return;
-            _stageIndex.Value = Mathf.Clamp(_stageIndex.Value + direction, 0, StageCount - 1);
         }
 
         [Rpc(SendTo.Server)]

@@ -36,16 +36,27 @@ public class PlayerMovement : MonoBehaviour
         _up = _down = _left = _right = false;
     }
 
+    /// <summary>
+    /// 눌린 방향으로 만든 입력. 차를 운전할 때도 이 값을 쓰므로, 이 컴포넌트가 꺼져 있어도 갱신된다.
+    /// </summary>
+    public Vector2 MoveInput
+    {
+        get
+        {
+            Vector2 input = new Vector2(
+                (_right ? 1f : 0f) - (_left ? 1f : 0f),
+                (_up ? 1f : 0f) - (_down ? 1f : 0f));
+
+            // 대각선이 빨라지지 않도록 정규화. Composite의 기본 동작을 직접 재현한다.
+            if (input.sqrMagnitude > 1f)
+                input.Normalize();
+            return input;
+        }
+    }
+
     private void FixedUpdate()
     {
-        Vector2 input = new Vector2(
-            (_right ? 1f : 0f) - (_left ? 1f : 0f),
-            (_up ? 1f : 0f) - (_down ? 1f : 0f));
-
-        // 대각선이 빨라지지 않도록 정규화. Composite의 기본 동작을 직접 재현한다.
-        if (input.sqrMagnitude > 1f)
-            input.Normalize();
-
+        Vector2 input = MoveInput;
         Vector3 movement = new Vector3(input.x, 0f, input.y) * _moveSpeed;
         if (input.sqrMagnitude > 0f)
             FacingDirection = new Vector3(input.x, 0f, input.y).normalized;

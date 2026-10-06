@@ -33,11 +33,8 @@ namespace OverCleaning.Lobby
         [SerializeField] private GameObject _thumbnailPlaceholder;
         [SerializeField] private TMP_Text[] _starTexts;
         [SerializeField] private TMP_Text _goalText;
-        [SerializeField] private TMP_Text _pageText;
 
         [Header("조작")]
-        [SerializeField] private Button _previousButton;
-        [SerializeField] private Button _nextButton;
         [SerializeField] private Button _startButton;
 
         [Header("최소화")]
@@ -68,8 +65,6 @@ namespace OverCleaning.Lobby
             }
 
             _closeButton.onClick.AddListener(_selection.RequestClose);
-            _previousButton.onClick.AddListener(() => _selection.RequestBrowse(-1));
-            _nextButton.onClick.AddListener(() => _selection.RequestBrowse(1));
             _startButton.onClick.AddListener(_selection.RequestStartStage);
             _selection.StateChanged += Refresh;
         }
@@ -105,20 +100,14 @@ namespace OverCleaning.Lobby
             StageDefinition stage = _selection.CurrentStage;
             ShowStage(stage);
 
-            int index = _selection.StageIndex;
-            int count = _selection.StageCount;
-            _pageText.text = count > 0 ? $"{index + 1} / {count}" : "스테이지 없음";
-
             // 누를 수 없는 버튼은 숨긴다. 시작 버튼만은 남겨 무엇을 기다리는지 알 수 있게 한다.
             _closeButton.gameObject.SetActive(canControl);
-            _previousButton.gameObject.SetActive(canControl && index > 0);
-            _nextButton.gameObject.SetActive(canControl && index < count - 1);
             _startButton.interactable = canControl && stage != null;
         }
 
         private void ShowStage(StageDefinition stage)
         {
-            _stageNumberText.text = stage != null ? $"STAGE {stage.Number}" : string.Empty;
+            _stageNumberText.text = stage != null ? $"STAGE {stage.Code}" : string.Empty;
             _stageNameText.text = stage != null ? stage.DisplayName : string.Empty;
             _minimizedStageNameText.text = _stageNameText.text;
             _goalText.text = stage != null ? $"목표: {stage.Goal}" : string.Empty;

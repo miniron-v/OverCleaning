@@ -1,3 +1,4 @@
+using OverCleaning.InGame;
 using OverCleaning.Input;
 using Unity.Netcode;
 using UnityEngine;
@@ -42,7 +43,16 @@ namespace OverCleaning.Network
             {
                 ApplyKeyLayout();
                 ApplyActionMap();
+                FollowWithCamera();
             }
+        }
+
+        /// <summary>따라가는 카메라가 있는 씬(대기방)에서만 자기 캐릭터를 따라가게 한다.</summary>
+        private void FollowWithCamera()
+        {
+            Camera mainCamera = Camera.main;
+            if (mainCamera != null && mainCamera.TryGetComponent(out CameraFollow follow))
+                follow.Target = transform;
         }
 
         /// <summary>
