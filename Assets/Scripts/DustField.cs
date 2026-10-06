@@ -21,6 +21,9 @@ namespace OverCleaning.InGame
         [SerializeField] private LayerMask _obstacleLayers = ~0;
         [Min(0f)] [SerializeField] private float _edgeMargin = 0.1f;
         [Min(0)] [SerializeField] private int _dustCount = 300;
+        [Tooltip("쏟기와 흩뿌리기로 늘어날 수 있는 여유 칸. 부딪칠 때 나오는 씨앗은 새로 생기는 " +
+                 "먼지라 이 여유가 없으면 바닥이 차 있을 때 조용히 사라진다.")]
+        [Min(0)] [SerializeField] private int _spillHeadroom = 150;
         [Tooltip("먼지 크기의 최솟값과 최댓값.")]
         [SerializeField] private Vector2 _dustSizeRange = new Vector2(0.1f, 0.25f);
         [SerializeField] private Color[] _dustColors =
@@ -272,7 +275,7 @@ namespace OverCleaning.InGame
             main.startSpeed = 0f;
             main.startLifetime = float.PositiveInfinity;
             main.simulationSpace = ParticleSystemSimulationSpace.World;
-            main.maxParticles = Mathf.Max(1, _dustCount);
+            main.maxParticles = Mathf.Max(1, _dustCount + _spillHeadroom);
             var emission = particleSystem.emission;
             emission.enabled = false;
             var shape = particleSystem.shape;
@@ -338,11 +341,13 @@ namespace OverCleaning.InGame
 
         private void GenerateDust()
         {
-            _particles = new ParticleSystem.Particle[_dustCount];
-            _textureIndices = new int[_dustCount];
-            _dustIds = new int[_dustCount];
-            _renderBuffer = new ParticleSystem.Particle[_dustCount];
-            _suctionStates = new SuctionState[_dustCount];
+            // 쏟기로 늘어날 수 있는 만큼 여유를 두고 잡는다. 처음 까는 수는 _dustCount 그대로다.
+            int capacity = _dustCount + _spillHeadroom;
+            _particles = new ParticleSystem.Particle[capacity];
+            _textureIndices = new int[capacity];
+            _dustIds = new int[capacity];
+            _renderBuffer = new ParticleSystem.Particle[capacity];
+            _suctionStates = new SuctionState[capacity];
             RemainingDustCount = 0;
             for (int index = 0; index < _dustCount; index++)
             {
@@ -685,6 +690,9 @@ namespace OverCleaning.InGame
             }
 
             Random.state = previousState;
+            if (spilledCount < count && RemainingDustCount >= _particles.Length)
+                Debug.LogWarning($"먼지가 가득 차 {count - spilledCount}개를 쏟지 못했습니다. " +
+                    "Spill Headroom을 늘려 주세요.", this);
             if (spilledCount > 0)
                 UpdateRenderedParticles();
             return spilledCount;
