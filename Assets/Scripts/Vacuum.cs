@@ -1,22 +1,24 @@
-using OverCleaning.Interaction;
 using Unity.Netcode;
 using UnityEngine;
 
 namespace OverCleaning.InGame
 {
     /// <summary>
-    /// 청소기 본체. 먼지통과 흡입, 놓을 자리 검사를 스스로 맡는다.
+    /// 청소기 본체. 먼지통과 흡입을 스스로 맡는다.
     /// 씬에 놓인 물건이라 같은 씬의 DustField와 TrashCan을 직접 참조할 수 있다.
-    ///
-    /// 누가 들고 있는지는 서버가 정한다. 상호작용은 요청일 뿐이고, 자리 검사도 서버가 해서
-    /// 동시에 눌러도 먼저 도착한 한 명만 든다. 서버가 TrySetParent로 든 사람에게 붙이면
-    /// 부모 관계와 위치·회전은 NGO(부모 동기화 + NetworkTransform)가 모든 기기에 맞춰 준다.
+    /// 들고 나르기는 CarriableItem이 맡고, 여기에는 청소기만의 것이 남는다.
     /// </summary>
-    [RequireComponent(typeof(BoxCollider))]
-    public sealed class Vacuum : NetworkBehaviour, IInteractable
+    public sealed class Vacuum : CarriableItem
     {
-        /// <summary>아무도 들고 있지 않을 때의 클라이언트 ID.</summary>
-        public const ulong NoHolder = ulong.MaxValue;
+        /// <summary>조준 회전 방식. 에디터에서 고른다.</summary>
+        public enum AimMode
+        {
+            /// <summary>일정 각도씩 끊어 돌며 경로를 검사한다.</summary>
+            Stepped,
+
+            /// <summary>남은 각도의 일정 비율씩 다가가 부드럽게 돈다. 벽에 막히면 멈추는 것은 같다.</summary>
+            Smooth,
+        }
 
         private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
 
@@ -24,8 +26,6 @@ namespace OverCleaning.InGame
         [SerializeField] private Renderer _nozzleRenderer;
         [SerializeField] private DustField _dustField;
         [SerializeField] private TrashCan _trashCan;
-        [Tooltip("먼지를 가리거나 청소기를 놓지 못하게 막는 벽과 장애물 레이어.")]
-        [SerializeField] private LayerMask _obstacleLayers = ~0;
         [Min(0.01f)] [SerializeField] private float _suctionRadius = 1f;
         [Min(0.01f)] [SerializeField] private float _suctionInterval = 0.25f;
         [Min(1)] [SerializeField] private int _dustPerSuction = 5;
@@ -33,14 +33,14 @@ namespace OverCleaning.InGame
         [Min(1)] [SerializeField] private int _dustCapacity = 50;
         [Tooltip("비우는 동안 초당 쓰레기통으로 옮기는 먼지 수. 적게 담겼으면 그만큼 빨리 끝난다.")]
         [Min(1f)] [SerializeField] private float _emptyDustPerSecond = 10f;
-
-        /// <summary>서버가 정한다. 들고 있는 사람.</summary>
-        private readonly NetworkVariable<ulong> _holderClientId = new NetworkVariable<ulong>(NoHolder);
+        [Tooltip("조준 회전 방식. Stepped는 일정 각도씩, Smooth는 보간으로 부드럽게 돈다.")]
+        [SerializeField] private AimMode _aimMode = AimMode.Stepped;
+        [Tooltip("Smooth 회전의 반응 속도. 클수록 빨리 따라붙는다.")]
+        [Min(0.1f)] [SerializeField] private float _aimSmoothing = 10f;
 
         /// <summary>서버가 정한다. 먼지통에 든 확정 수량. 모두가 같은 숫자를 본다.</summary>
         private readonly NetworkVariable<int> _storedDust = new NetworkVariable<int>();
 
-        private BoxCollider _bodyCollider;
         private MaterialPropertyBlock _nozzleProperties;
 
         /// <summary>
@@ -49,21 +49,12 @@ namespace OverCleaning.InGame
         /// </summary>
         private int _reservedDust;
 
-        private readonly Collider[] _overlapBuffer = new Collider[32];
-        private readonly RaycastHit[] _castBuffer = new RaycastHit[32];
-        private Rigidbody _holderBody;
         private bool _suctionPaused;
         private float _suctionElapsedTime;
 
         /// <summary>서버에서만 쓴다. 비우는 중인지와, 아직 1개가 안 된 비우기 진행분.</summary>
         private bool _serverEmptying;
         private float _emptyAccumulator;
-
-        public bool IsHeld => _holderBody != null;
-
-        /// <summary>이 기기의 플레이어가 들고 있는지.</summary>
-        public bool IsHeldByLocalPlayer =>
-            IsSpawned && _holderClientId.Value == NetworkManager.LocalClientId;
 
         public bool IsRunning { get; private set; }
         public Vector3 SuctionPosition => _suctionPoint.position;
@@ -74,16 +65,11 @@ namespace OverCleaning.InGame
         public bool IsFull => _storedDust.Value >= _dustCapacity;
         private bool HasDustSpace => _storedDust.Value + _reservedDust < _dustCapacity;
 
-        /// <summary>
-        /// 상호작용으로는 들기만 한다. 들린 뒤의 내려놓기와 비우기는 든 사람의
-        /// VacuumCarrier가 같은 키의 짧게/길게를 가려서 처리한다.
-        /// </summary>
-        public bool CanInteract => isActiveAndEnabled && !IsHeld;
-        public string Prompt => "청소기 들기";
+        protected override string ItemName => "청소기";
 
-        private void Awake()
+        protected override void Awake()
         {
-            _bodyCollider = GetComponent<BoxCollider>();
+            base.Awake();
             _nozzleProperties = new MaterialPropertyBlock();
 
             if (_suctionPoint == null || _nozzleRenderer == null)
@@ -99,35 +85,17 @@ namespace OverCleaning.InGame
         public override void OnNetworkSpawn()
         {
             _storedDust.OnValueChanged += OnStoredDustChanged;
-            if (IsServer)
-                NetworkManager.OnClientDisconnectCallback += OnClientDisconnected;
-
-            // 늦게 들어오면 이미 든 사람에게 붙은 채로 스폰된다. 현재 부모 기준으로 맞춘다.
-            OnNetworkObjectParentChanged(
-                transform.parent != null ? transform.parent.GetComponent<NetworkObject>() : null);
+            base.OnNetworkSpawn();
         }
 
         public override void OnNetworkDespawn()
         {
             _storedDust.OnValueChanged -= OnStoredDustChanged;
-            if (IsServer && NetworkManager != null)
-                NetworkManager.OnClientDisconnectCallback -= OnClientDisconnected;
+            base.OnNetworkDespawn();
         }
 
-        /// <summary>
-        /// 서버가 부모를 바꾸면 NGO가 모든 기기에서 이것을 불러 준다.
-        /// 여기서 상태를 읽으므로 들림/놓임을 따로 전파할 필요가 없다.
-        /// </summary>
-        public override void OnNetworkObjectParentChanged(NetworkObject parentNetworkObject)
+        protected override void OnCarryChanged()
         {
-            _holderBody = parentNetworkObject != null ? parentNetworkObject.GetComponent<Rigidbody>() : null;
-
-            // 재등록하여 놓은 Collider가 사람의 복합 Collider로 남지 않게 한다.
-            _bodyCollider.enabled = false;
-            _bodyCollider.enabled = true;
-            if (_holderBody != null)
-                transform.localPosition = Vector3.zero;
-            Physics.SyncTransforms();
             UpdateRunning();
         }
 
@@ -147,124 +115,8 @@ namespace OverCleaning.InGame
                 _dustField.CancelSuctionFor(this);
         }
 
-        /// <summary>들기를 서버에 요청한다. 자기 캐릭터를 조작하는 클라이언트에서만 불린다.</summary>
-        public void Interact()
-        {
-            if (!IsSpawned)
-            {
-                Debug.LogWarning("청소기가 네트워크에 올라와 있지 않아 들 수 없습니다. " +
-                    "이 오브젝트에 NetworkObject를 붙였는지, 씬을 NGO 씬 매니저로 불러왔는지 확인하세요.", this);
-                return;
-            }
-
-            RequestPickUpRpc();
-        }
-
-        /// <summary>내려놓기를 서버에 요청한다. 든 사람의 기기에서 부른다.</summary>
-        public void RequestDrop()
-        {
-            if (IsSpawned && IsHeldByLocalPlayer)
-                RequestDropRpc();
-        }
-
-        /// <summary>들기를 서버가 판정한다. 누가 눌렀는지는 보낸 사람으로 알 수 있다.</summary>
-        [Rpc(SendTo.Server)]
-        private void RequestPickUpRpc(RpcParams rpcParams = default)
-        {
-            if (_holderClientId.Value == NoHolder)
-                ServerPickUp(rpcParams.Receive.SenderClientId);
-            else
-                Debug.Log($"청소기는 이미 {_holderClientId.Value}번 플레이어가 들고 있습니다.", this);
-        }
-
-        [Rpc(SendTo.Server)]
-        private void RequestDropRpc(RpcParams rpcParams = default)
-        {
-            if (IsFromHolder(rpcParams))
-                ServerDrop();
-        }
-
-        /// <summary>이 요청을 보낸 사람이 지금 들고 있는 사람인가. 아닌 요청은 버린다.</summary>
-        private bool IsFromHolder(RpcParams rpcParams)
-        {
-            return _holderClientId.Value == rpcParams.Receive.SenderClientId;
-        }
-
-        private void ServerPickUp(ulong clientId)
-        {
-            // 서버에서만 부르므로 남의 플레이어도 조회할 수 있다.
-            NetworkObject player = NetworkManager.SpawnManager.GetPlayerNetworkObject(clientId);
-            Rigidbody holderBody = player != null ? player.GetComponent<Rigidbody>() : null;
-            if (holderBody == null)
-            {
-                Debug.LogWarning($"{clientId}번 플레이어의 Rigidbody를 찾지 못해 청소기를 들 수 없습니다.", this);
-                return;
-            }
-            // 들어 올리는 동안 든 사람과 겹치는 것은 당연하므로 장애물로 보지 않는다.
-            if (!CanPlaceVacuum(holderBody.position, holderBody, true))
-            {
-                Debug.LogWarning("청소기를 들 자리가 막혀 있어 들 수 없습니다.", this);
-                return;
-            }
-            if (!NetworkObject.TrySetParent(player))
-            {
-                Debug.LogWarning("청소기를 든 사람에게 붙이지 못했습니다. AutoObjectParentSync 설정을 확인하세요.", this);
-                return;
-            }
-
-            _holderClientId.Value = clientId;
-            // 방향은 든 사람이 조종하므로 그 사람에게 쓰기 권한을 넘긴다. NetworkTransform이 전파한다.
-            NetworkObject.ChangeOwnership(clientId);
-        }
-
-        private void ServerDrop()
-        {
-            Rigidbody holderBody = _holderBody;
-            if (holderBody == null)
-            {
-                ServerRelease(transform.position);
-                return;
-            }
-
-            // 사람 몸과 겹치지 않도록 조금 앞에 내려놓는다.
-            Vector3 destination = holderBody.position + transform.forward * 0.3f;
-            if (!CanPlaceVacuum(destination, holderBody, false))
-            {
-                Debug.LogWarning("앞에 장애물이 있거나 플레이어와 겹쳐 청소기를 내려놓을 수 없습니다.", this);
-                return;
-            }
-            if (!HasGroundSupport(destination))
-            {
-                Debug.LogWarning("청소기를 내려놓을 위치에 평평한 바닥이 없습니다.", this);
-                return;
-            }
-
-            ServerRelease(destination);
-        }
-
-        /// <summary>
-        /// 서버가 청소기를 바닥에 놓는다. 부모를 떼고 권한을 되찾아 최종 자리를 박으면
-        /// NGO가 모든 기기(늦게 들어온 사람 포함)에 같은 위치와 방향을 맞춰 준다.
-        /// </summary>
-        private void ServerRelease(Vector3 destination)
-        {
-            _serverEmptying = false;
-            _holderClientId.Value = NoHolder;
-            NetworkObject.TryRemoveParent();
-            NetworkObject.RemoveOwnership();
-            transform.position = destination;
-            Physics.SyncTransforms();
-        }
-
-        /// <summary>들고 있던 사람이 나가면 그 자리에 놓아둔다. 아니면 아무도 들 수 없게 된다.</summary>
-        private void OnClientDisconnected(ulong clientId)
-        {
-            if (_holderClientId.Value == clientId)
-                ServerRelease(transform.position);
-        }
-
         /// <summary>든 사람이 보는 쪽으로 돌린다. 든 사람의 기기에서만 불린다.</summary>
-        public void AimAt(Vector3 facingDirection)
+        public override void AimAt(Vector3 facingDirection)
         {
             if (!IsHeld || !IsOwner || facingDirection.sqrMagnitude < 0.000001f)
                 return;
@@ -275,13 +127,26 @@ namespace OverCleaning.InGame
             if (angle < 0.01f)
                 return;
 
-            // 최종 방향뿐 아니라 회전 경로도 검사해 얇은 벽을 가로질러 돌지 못하게 한다.
-            int steps = Mathf.CeilToInt(angle / 5f);
             Vector3 scale = transform.lossyScale;
             Vector3 halfExtents = Vector3.Scale(_bodyCollider.size, scale) * 0.5f;
             Vector3 centerOffset = Vector3.Scale(_bodyCollider.center, scale);
             float reach = new Vector2(centerOffset.x, centerOffset.z).magnitude +
                           new Vector2(halfExtents.x, halfExtents.z).magnitude;
+
+            if (_aimMode == AimMode.Smooth)
+            {
+                // 남은 각도의 일정 비율만큼 다가간다. 프레임이 쌓일수록 목표에 수렴해 부드럽다.
+                float alpha = 1f - Mathf.Exp(-_aimSmoothing * Time.fixedDeltaTime);
+                float movedAngle = angle * alpha;
+                float smoothPadding = reach * movedAngle * Mathf.Deg2Rad;
+                Quaternion candidate = Quaternion.Slerp(start, target, alpha);
+                if (!OverlapsObstacle(candidate, halfExtents, centerOffset, smoothPadding))
+                    transform.rotation = candidate;
+                return;
+            }
+
+            // 최종 방향뿐 아니라 회전 경로도 검사해 얇은 벽을 가로질러 돌지 못하게 한다.
+            int steps = Mathf.CeilToInt(angle / 5f);
             float padding = reach * (angle / steps) * Mathf.Deg2Rad;
 
             for (int step = 1; step <= steps; step++)
@@ -308,7 +173,7 @@ namespace OverCleaning.InGame
         public bool CanEmptyDustBin()
         {
             return IsHeld && StoredDustCount > 0 && _trashCan != null &&
-                _trashCan.CanReceiveDust(HandPosition, _holderBody);
+                _trashCan.CanReceiveDust(HandPosition, HolderBody);
         }
 
         /// <summary>비우기 시작을 서버에 알린다. 든 사람이 키를 누르고 있는 동안만 비워진다.</summary>
@@ -360,7 +225,7 @@ namespace OverCleaning.InGame
                 return;
 
             _emptyAccumulator -= amount;
-            if (_trashCan.TryReceiveDust(HandPosition, _holderBody, amount))
+            if (_trashCan.TryReceiveDust(HandPosition, HolderBody, amount))
                 _storedDust.Value -= amount;
             else
                 _serverEmptying = false;
@@ -378,6 +243,12 @@ namespace OverCleaning.InGame
 
             if (_storedDust.Value < _dustCapacity)
                 _storedDust.Value++;
+
+            // 빨아들인 사람의 전적에 더한다.
+            PlayerScore score = HolderBody != null ? HolderBody.GetComponent<PlayerScore>() : null;
+            if (score != null)
+                score.ServerAddCleanedDust(1);
+
             RemoveDustRpc(dustId);
         }
 
@@ -412,7 +283,7 @@ namespace OverCleaning.InGame
                 return false;
             for (int index = 0; index < count; index++)
             {
-                if (!IsIgnoredCollider(_castBuffer[index].collider, _holderBody))
+                if (!IsIgnoredCollider(_castBuffer[index].collider, HolderBody))
                     return false;
             }
 
@@ -441,7 +312,7 @@ namespace OverCleaning.InGame
         }
 
         /// <summary>든 사람의 손 높이. 쓰레기통까지의 거리를 재는 기준이다.</summary>
-        private Vector3 HandPosition => _holderBody.position + Vector3.up * 0.5f;
+        private Vector3 HandPosition => HolderBody.position + Vector3.up * 0.5f;
 
         private void UpdateSuction()
         {
@@ -469,76 +340,10 @@ namespace OverCleaning.InGame
             UpdateNozzleColor();
         }
 
-        private bool CanPlaceVacuum(Vector3 destination, Rigidbody ignoredBody, bool ignoreBodyAtDestination)
-        {
-            Physics.SyncTransforms();
-            Vector3 halfExtents = Vector3.Scale(_bodyCollider.size, transform.lossyScale) * 0.5f;
-            Quaternion rotation = transform.rotation;
-            Vector3 currentCenter = transform.TransformPoint(_bodyCollider.center);
-            Vector3 displacement = destination - transform.position;
-            int count = Physics.OverlapBoxNonAlloc(currentCenter + displacement, halfExtents,
-                _overlapBuffer, rotation, _obstacleLayers, QueryTriggerInteraction.Ignore);
-            if (count == _overlapBuffer.Length)
-                return false;
-            for (int index = 0; index < count; index++)
-            {
-                if (!IsIgnoredCollider(_overlapBuffer[index], ignoreBodyAtDestination ? ignoredBody : null))
-                    return false;
-            }
-
-            // 들거나 놓을 때 위치만 바꾸어 얇은 벽 반대편으로 통과하지 않도록 검사한다.
-            if (displacement.sqrMagnitude < 0.000001f)
-                return true;
-            count = Physics.BoxCastNonAlloc(currentCenter, halfExtents, displacement.normalized,
-                _castBuffer, rotation, displacement.magnitude, _obstacleLayers, QueryTriggerInteraction.Ignore);
-            if (count == _castBuffer.Length)
-                return false;
-            for (int index = 0; index < count; index++)
-            {
-                if (!IsIgnoredCollider(_castBuffer[index].collider, ignoredBody))
-                    return false;
-            }
-
-            return true;
-        }
-
-        private bool IsIgnoredCollider(Collider other, Rigidbody ignoredBody)
-        {
-            return other == _bodyCollider || (ignoredBody != null && other.attachedRigidbody == ignoredBody);
-        }
-
-        private bool HasGroundSupport(Vector3 destination)
-        {
-            Vector3 halfExtents = _bodyCollider.size * 0.5f;
-            for (int x = -1; x <= 1; x += 2)
-            {
-                for (int z = -1; z <= 1; z += 2)
-                {
-                    Vector3 corner = _bodyCollider.center +
-                        new Vector3(x * halfExtents.x, -halfExtents.y + 0.1f, z * halfExtents.z);
-                    Vector3 origin = destination + transform.rotation *
-                        Vector3.Scale(corner, transform.lossyScale);
-                    int count = Physics.RaycastNonAlloc(origin, Vector3.down, _castBuffer,
-                        0.2f, _obstacleLayers, QueryTriggerInteraction.Ignore);
-                    bool supported = false;
-                    for (int index = 0; index < count; index++)
-                    {
-                        if (!IsIgnoredCollider(_castBuffer[index].collider, _holderBody) &&
-                            _castBuffer[index].normal.y > 0.99f)
-                            supported = true;
-                    }
-                    if (!supported)
-                        return false;
-                }
-            }
-
-            return true;
-        }
-
         private bool OverlapsObstacle(Quaternion rotation, Vector3 halfExtents, Vector3 centerOffset, float padding)
         {
             // FixedUpdate에서는 보간된 화면 위치 대신 Rigidbody의 물리 위치를 사용한다.
-            Vector3 pivotPosition = _holderBody.position + _holderBody.rotation * transform.localPosition;
+            Vector3 pivotPosition = HolderBody.position + HolderBody.rotation * transform.localPosition;
             Vector3 center = pivotPosition + rotation * centerOffset;
             halfExtents += new Vector3(padding, 0f, padding);
             int count = Physics.OverlapBoxNonAlloc(center, halfExtents, _overlapBuffer,
@@ -547,7 +352,7 @@ namespace OverCleaning.InGame
                 return true;
             for (int index = 0; index < count; index++)
             {
-                if (!IsIgnoredCollider(_overlapBuffer[index], _holderBody))
+                if (!IsIgnoredCollider(_overlapBuffer[index], HolderBody))
                     return true;
             }
 
