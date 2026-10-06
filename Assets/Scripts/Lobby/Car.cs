@@ -256,6 +256,16 @@ namespace OverCleaning.Lobby
             for (int seatIndex = 0; seatIndex < _seatedPlayers.Count && seatIndex < _seats.Length; seatIndex++)
             {
                 NetworkObject player = _seatedPlayers[seatIndex];
+                if (player == null && IsSpawned)
+                {
+                    // 늦게 들어오면 차가 탄 사람보다 먼저 스폰되어 처음에는 찾지 못한다.
+                    player = FindPlayer(_occupants[seatIndex]);
+                    if (player == null)
+                        continue;
+                    _seatedPlayers[seatIndex] = player;
+                    SetSeated(player, true);
+                }
+
                 if (player != null)
                     player.transform.position = _seats[seatIndex].position;
             }
