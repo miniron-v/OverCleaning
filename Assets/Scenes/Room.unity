@@ -22823,7 +22823,6 @@ MonoBehaviour:
   _speed: 20
   _turnSpeed: 270
   _exitDistance: 2
-  _seatMoveSpeed: 4
 --- !u!114 &2130618032
 MonoBehaviour:
   m_ObjectHideFlags: 0
