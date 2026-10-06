@@ -64,6 +64,9 @@ namespace OverCleaning.InGame
             // 여기서 찾히지 않는다.
             _heldItem = GetComponentInChildren<CarriableItem>();
 
+            // 무거운 물건을 들면 느려진다. 내려놓으면 돌아온다.
+            _playerMovement.SpeedMultiplier = _heldItem != null ? _heldItem.CarrySpeedMultiplier : 1f;
+
             if (_isTrackingPress)
                 UpdatePress(isPressed);
         }

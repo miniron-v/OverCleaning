@@ -10,6 +10,9 @@ public class PlayerMovement : MonoBehaviour
 
     public Vector3 FacingDirection { get; private set; } = Vector3.forward;
 
+    /// <summary>이동 속도 배율. 무거운 물건을 들면 ItemCarrier가 낮춰 준다.</summary>
+    public float SpeedMultiplier { get; set; } = 1f;
+
     // 방향별 개별 액션 입력. 키 셔플이 이 액션들의 바인딩을 재배치해도 이동 로직은 그대로다.
     private bool _up, _down, _left, _right;
 
@@ -46,7 +49,7 @@ public class PlayerMovement : MonoBehaviour
         if (input.sqrMagnitude > 1f)
             input.Normalize();
 
-        Vector3 movement = new Vector3(input.x, 0f, input.y) * _moveSpeed;
+        Vector3 movement = new Vector3(input.x, 0f, input.y) * (_moveSpeed * SpeedMultiplier);
         if (input.sqrMagnitude > 0f)
             FacingDirection = new Vector3(input.x, 0f, input.y).normalized;
         _rigidbody.linearVelocity = new Vector3(movement.x, _rigidbody.linearVelocity.y, movement.z);

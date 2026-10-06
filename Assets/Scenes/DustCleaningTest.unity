@@ -3204,6 +3204,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::OverCleaning.InGame.TrashCan
   ShowTopMostFoldoutHeaderGroup: 1
   _carryMode: 1
+  _carrySpeedMultiplier: 0.7
   _interactionRadius: 1.5
   _obstacleLayers:
     serializedVersion: 2

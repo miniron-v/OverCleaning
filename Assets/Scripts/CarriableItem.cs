@@ -42,6 +42,9 @@ namespace OverCleaning.InGame
         [Tooltip("들기 물건이 보는 쪽을 따라 도는 속도. 클수록 빨리 따라붙는다.")]
         [Min(0.1f)] [SerializeField] private float _carryFollowSharpness = 8f;
 
+        [Tooltip("들고 있는 동안 든 사람의 이동 속도 배율. 1이면 그대로, 낮출수록 무겁다.")]
+        [Range(0.1f, 1f)] [SerializeField] private float _carrySpeedMultiplier = 1f;
+
         [Tooltip("물건을 가리거나 놓지 못하게 막는 벽과 장애물 레이어.")]
         [SerializeField] protected LayerMask _obstacleLayers = ~0;
 
@@ -64,6 +67,9 @@ namespace OverCleaning.InGame
         /// <summary>이 기기의 플레이어가 들고 있는지.</summary>
         public bool IsHeldByLocalPlayer =>
             IsSpawned && _holderClientId.Value == NetworkManager.LocalClientId;
+
+        /// <summary>들고 있는 동안 든 사람의 이동 속도 배율. 무거운 물건일수록 낮다.</summary>
+        public float CarrySpeedMultiplier => _carrySpeedMultiplier;
 
         /// <summary>안내 문구에 쓸 이름. 예: "청소기".</summary>
         protected abstract string ItemName { get; }
