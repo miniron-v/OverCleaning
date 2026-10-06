@@ -31,6 +31,8 @@ namespace OverCleaning.InGame
         [Min(1)] [SerializeField] private int _dustPerSuction = 5;
         [Min(0.01f)] [SerializeField] private float _suctionDuration = 0.2f;
         [Min(1)] [SerializeField] private int _dustCapacity = 50;
+        [Tooltip("비우는 동안 초당 쓰레기통으로 옮기는 먼지 수. 적게 담겼으면 그만큼 빨리 끝난다.")]
+        [Min(1f)] [SerializeField] private float _emptyDustPerSecond = 10f;
 
         /// <summary>서버가 정한다. 들고 있는 사람.</summary>
         private readonly NetworkVariable<ulong> _holderClientId = new NetworkVariable<ulong>(NoHolder);
@@ -64,6 +66,10 @@ namespace OverCleaning.InGame
         private bool _suctionPaused;
         private float _suctionElapsedTime;
 
+        /// <summary>서버에서만 쓴다. 비우는 중인지와, 아직 1개가 안 된 비우기 진행분.</summary>
+        private bool _serverEmptying;
+        private float _emptyAccumulator;
+
         public bool IsHeld => _holderBody != null;
 
         /// <summary>이 기기의 플레이어가 들고 있는지.</summary>
@@ -79,8 +85,12 @@ namespace OverCleaning.InGame
         public bool IsFull => _storedDust.Value >= _dustCapacity;
         private bool HasDustSpace => _storedDust.Value + _reservedDust < _dustCapacity;
 
-        public bool CanInteract => isActiveAndEnabled;
-        public string Prompt => IsHeldByLocalPlayer ? "청소기 내려놓기" : "청소기 들기";
+        /// <summary>
+        /// 상호작용으로는 들기만 한다. 들린 뒤의 내려놓기와 비우기는 든 사람의
+        /// VacuumCarrier가 같은 키의 짧게/길게를 가려서 처리한다.
+        /// </summary>
+        public bool CanInteract => isActiveAndEnabled && !IsHeld;
+        public string Prompt => "청소기 들기";
 
         private void Awake()
         {
@@ -132,6 +142,9 @@ namespace OverCleaning.InGame
             if (IsHeld && !IsOwner)
                 transform.rotation = Quaternion.Euler(0f, _aimYaw.Value, 0f);
 
+            if (IsServer && _serverEmptying)
+                UpdateServerEmptying();
+
             UpdateRunning();
             UpdateSuction();
         }
@@ -143,10 +156,7 @@ namespace OverCleaning.InGame
                 _dustField.CancelSuctionFor(this);
         }
 
-        /// <summary>
-        /// 들고 있으면 내려놓기를, 아니면 들기를 서버에 요청한다.
-        /// 자기 캐릭터를 조작하는 클라이언트에서만 불린다.
-        /// </summary>
+        /// <summary>들기를 서버에 요청한다. 자기 캐릭터를 조작하는 클라이언트에서만 불린다.</summary>
         public void Interact()
         {
             if (!IsSpawned)
@@ -156,22 +166,31 @@ namespace OverCleaning.InGame
                 return;
             }
 
-            RequestToggleHoldRpc();
+            RequestPickUpRpc();
         }
 
-        /// <summary>
-        /// 들기와 내려놓기를 서버가 판정한다. 누가 눌렀는지는 보낸 사람으로 알 수 있다.
-        /// </summary>
-        [Rpc(SendTo.Server)]
-        private void RequestToggleHoldRpc(RpcParams rpcParams = default)
+        /// <summary>내려놓기를 서버에 요청한다. 든 사람의 기기에서 부른다.</summary>
+        public void RequestDrop()
         {
-            ulong senderClientId = rpcParams.Receive.SenderClientId;
-            if (_holderClientId.Value == senderClientId)
-                ServerDrop();
-            else if (_holderClientId.Value == NoHolder)
-                ServerPickUp(senderClientId);
+            if (IsSpawned && IsHeldByLocalPlayer)
+                RequestDropRpc();
+        }
+
+        /// <summary>들기를 서버가 판정한다. 누가 눌렀는지는 보낸 사람으로 알 수 있다.</summary>
+        [Rpc(SendTo.Server)]
+        private void RequestPickUpRpc(RpcParams rpcParams = default)
+        {
+            if (_holderClientId.Value == NoHolder)
+                ServerPickUp(rpcParams.Receive.SenderClientId);
             else
                 Debug.Log($"청소기는 이미 {_holderClientId.Value}번 플레이어가 들고 있습니다.", this);
+        }
+
+        [Rpc(SendTo.Server)]
+        private void RequestDropRpc(RpcParams rpcParams = default)
+        {
+            if (_holderClientId.Value == rpcParams.Receive.SenderClientId)
+                ServerDrop();
         }
 
         private void ServerPickUp(ulong clientId)
@@ -221,6 +240,7 @@ namespace OverCleaning.InGame
 
         private void ServerRelease(Vector3 destination)
         {
+            _serverEmptying = false;
             _restPosition.Value = destination;
             _holderClientId.Value = NoHolder;
             NetworkObject.RemoveOwnership();
@@ -323,28 +343,60 @@ namespace OverCleaning.InGame
                 _trashCan.CanReceiveDust(HandPosition, _holderBody);
         }
 
-        /// <summary>
-        /// 쓰레기통에 먼지를 넘기고 먼지통을 비우도록 서버에 요청한다.
-        /// 다 비웠는지는 서버가 내려주는 수량으로 알 수 있으므로 결과를 돌려주지 않는다.
-        /// </summary>
-        public void RequestEmptyDustBin()
+        /// <summary>비우기 시작을 서버에 알린다. 든 사람이 키를 누르고 있는 동안만 비워진다.</summary>
+        public void RequestBeginEmptying()
         {
             if (IsSpawned && IsHeldByLocalPlayer)
-                RequestEmptyDustBinRpc();
+                BeginEmptyingRpc();
+        }
+
+        /// <summary>키를 뗐다고 서버에 알린다. 그때까지 빠져나간 먼지는 그대로 버려진 것이다.</summary>
+        public void RequestEndEmptying()
+        {
+            if (IsSpawned && IsHeldByLocalPlayer)
+                EndEmptyingRpc();
         }
 
         [Rpc(SendTo.Server)]
-        private void RequestEmptyDustBinRpc(RpcParams rpcParams = default)
+        private void BeginEmptyingRpc(RpcParams rpcParams = default)
         {
             // 들고 있지 않은 사람이 보낸 요청은 버린다.
-            if (_holderClientId.Value != rpcParams.Receive.SenderClientId)
+            if (_holderClientId.Value != rpcParams.Receive.SenderClientId || !CanEmptyDustBin())
                 return;
-            if (!CanEmptyDustBin() || _trashCan == null)
+            _serverEmptying = true;
+            _emptyAccumulator = 0f;
+        }
+
+        [Rpc(SendTo.Server)]
+        private void EndEmptyingRpc(RpcParams rpcParams = default)
+        {
+            if (_holderClientId.Value == rpcParams.Receive.SenderClientId)
+                _serverEmptying = false;
+        }
+
+        /// <summary>
+        /// 서버에서 돈다. 누르고 있는 동안 초당 일정량씩 쓰레기통으로 옮기므로
+        /// 적게 담겼으면 빨리 끝나고, 중간에 떼면 그때까지 빠진 만큼만 비워진다.
+        /// 수량은 NetworkVariable이라 빠져나가는 모습이 모든 화면에 그대로 보인다.
+        /// </summary>
+        private void UpdateServerEmptying()
+        {
+            if (!CanEmptyDustBin())
+            {
+                _serverEmptying = false;
                 return;
-            if (!_trashCan.TryReceiveDust(HandPosition, _holderBody, _storedDust.Value))
+            }
+
+            _emptyAccumulator += Time.deltaTime * _emptyDustPerSecond;
+            int amount = Mathf.Min((int)_emptyAccumulator, _storedDust.Value);
+            if (amount <= 0)
                 return;
 
-            _storedDust.Value = 0;
+            _emptyAccumulator -= amount;
+            if (_trashCan.TryReceiveDust(HandPosition, _holderBody, amount))
+                _storedDust.Value -= amount;
+            else
+                _serverEmptying = false;
         }
 
         /// <summary>
