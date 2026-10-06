@@ -10,9 +10,9 @@ using UnityEngine.UI;
 namespace OverCleaning.EditorTools
 {
     /// <summary>
-    /// 대기방의 단계 선택에 필요한 것을 만든다: 상태를 맞추는 네트워크 오브젝트,
-    /// 상호작용할 맵 선택 오브젝트, 우측 모달 화면.
+    /// 대기방의 단계 선택에 필요한 것을 만든다: 상태를 맞추는 네트워크 오브젝트, 우측 모달 화면.
     /// 화면은 룸 UI와 같은 Canvas에 들어가므로 룸 UI를 만들 때 함께 만든다.
+    /// 스테이지 선택 오브젝트는 마을 길가에 스테이지마다 직접 놓는다.
     /// </summary>
     internal static class StageSelectBuilder
     {
@@ -24,14 +24,12 @@ namespace OverCleaning.EditorTools
         private const float HeaderButtonWidth = 140f;
         private const float MinimizedWidth = 480f;
 
-        private static readonly Vector3 SelectObjectPosition = new Vector3(5.5f, 0f, 3f);
         private static readonly Color ModalBackground = new Color(0f, 0f, 0f, 0.35f);
         private static readonly Color SubTextColor = new Color(0.75f, 0.77f, 0.8f, 1f);
 
         internal static void Build(Canvas canvas)
         {
             StageSelection selection = CreateSelectionIfMissing();
-            CreateSelectObjectIfMissing(selection);
             CreateScreen(canvas.transform, selection);
         }
 
@@ -58,45 +56,6 @@ namespace OverCleaning.EditorTools
             serialized.FindProperty("_catalog").objectReferenceValue = catalog;
             serialized.ApplyModifiedPropertiesWithoutUndo();
             return selection;
-        }
-
-        /// <summary>
-        /// 받침대 위에 구슬을 얹은 모양. 구슬 색으로 누가 고르는 중인지 알린다.
-        /// 이미 있으면 자리는 그대로 두고 참조만 다시 맞춘다.
-        /// </summary>
-        private static void CreateSelectObjectIfMissing(StageSelection selection)
-        {
-            StageSelectObject selectObject = Object.FindAnyObjectByType<StageSelectObject>();
-            if (selectObject == null)
-            {
-                GameObject root = new GameObject("StageSelectObject", typeof(StageSelectObject));
-                root.transform.position = SelectObjectPosition;
-                Undo.RegisterCreatedObjectUndo(root, "Build Stage Select");
-
-                // 기본 원기둥은 높이가 2라서 세로 0.3배면 높이 0.6이 된다.
-                CreatePrimitive(PrimitiveType.Cylinder, "Base", root.transform,
-                    new Vector3(0f, 0.3f, 0f), new Vector3(1.2f, 0.3f, 1.2f));
-                CreatePrimitive(PrimitiveType.Sphere, "Indicator", root.transform,
-                    new Vector3(0f, 0.9f, 0f), Vector3.one * 0.6f);
-                selectObject = root.GetComponent<StageSelectObject>();
-            }
-
-            Transform indicator = selectObject.transform.Find("Indicator");
-            SerializedObject serialized = new SerializedObject(selectObject);
-            serialized.FindProperty("_selection").objectReferenceValue = selection;
-            serialized.FindProperty("_indicatorRenderer").objectReferenceValue =
-                indicator != null ? indicator.GetComponent<Renderer>() : null;
-            serialized.ApplyModifiedPropertiesWithoutUndo();
-        }
-
-        private static void CreatePrimitive(PrimitiveType type, string name, Transform parent,
-            Vector3 localPosition, Vector3 localScale)
-        {
-            GameObject primitive = GameObject.CreatePrimitive(type);
-            primitive.name = name;
-            primitive.transform.SetParent(parent, false);
-            primitive.transform.localPosition = localPosition;
-            primitive.transform.localScale = localScale;
         }
 
         private static void CreateScreen(Transform canvas, StageSelection selection)
