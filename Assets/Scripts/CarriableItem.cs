@@ -26,6 +26,19 @@ namespace OverCleaning.InGame
         /// </summary>
         private const float PlacementSkin = 0.01f;
 
+        /// <summary>드는 방식. 물건마다 에디터에서 고른다.</summary>
+        public enum CarryMode
+        {
+            /// <summary>장착: 물건이 든 사람의 정해진 자리로 붙어 함께 움직인다. 예: 청소기.</summary>
+            Equip,
+
+            /// <summary>들기: 잡은 자리에서 그대로, 그 간격을 유지한 채 따라온다. 예: 쓰레기통.</summary>
+            Carry,
+        }
+
+        [Tooltip("장착은 든 사람의 정해진 자리로 붙고, 들기는 잡은 자리 그대로 들려 따라온다.")]
+        [SerializeField] private CarryMode _carryMode = CarryMode.Equip;
+
         [Tooltip("물건을 가리거나 놓지 못하게 막는 벽과 장애물 레이어.")]
         [SerializeField] protected LayerMask _obstacleLayers = ~0;
 
@@ -106,7 +119,8 @@ namespace OverCleaning.InGame
             // 재등록하여 놓은 Collider가 사람의 복합 Collider로 남지 않게 한다.
             _bodyCollider.enabled = false;
             _bodyCollider.enabled = true;
-            if (HolderBody != null)
+            // 장착만 정해진 자리로 붙인다. 들기는 잡은 자리 그대로 들려 따라온다.
+            if (HolderBody != null && _carryMode == CarryMode.Equip)
                 transform.localPosition = HeldLocalPosition;
             Physics.SyncTransforms();
             OnCarryChanged();
@@ -184,8 +198,10 @@ namespace OverCleaning.InGame
                 Debug.Log($"이미 다른 것을 들고 있어 들 수 없습니다({ItemName}).", this);
                 return;
             }
-            // 들어 올리는 동안 든 사람과 겹치는 것은 당연하므로 장애물로 보지 않는다.
-            if (!CanPlace(transform.position, holderBody.position, holderBody, true))
+            // 장착은 물건이 든 사람 자리로 옮겨 가므로 가는 길을 검사한다. 들어 올리는 동안
+            // 든 사람과 겹치는 것은 당연하므로 장애물로 보지 않는다. 들기는 안 움직이니 안 본다.
+            if (_carryMode == CarryMode.Equip &&
+                !CanPlace(transform.position, holderBody.position, holderBody, true))
             {
                 Debug.LogWarning($"들 자리가 막혀 있어 들 수 없습니다({ItemName}).", this);
                 return;

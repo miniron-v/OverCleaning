@@ -18,8 +18,6 @@ namespace OverCleaning.InGame
         [Min(0.1f)] [SerializeField] private float _interactionRadius = 1.5f;
         [Tooltip("내려놓을 때 든 사람에게서 밀어낼 거리. 쓰레기통이 넓어 청소기보다 멀리 둔다.")]
         [Min(0.1f)] [SerializeField] private float _dropDistance = 1.2f;
-        [Tooltip("들었을 때 올릴 높이. 너무 높이 들면 상호작용 반경에서 벗어나 내려놓지 못한다.")]
-        [SerializeField] private Vector3 _heldLocalPosition = new Vector3(0f, 1.5f, 0f);
 
         [Tooltip("넘어질 때 먼지를 쏟을 DustField.")]
         [SerializeField] private DustField _dustField;
@@ -48,7 +46,6 @@ namespace OverCleaning.InGame
         public bool IsTippedOver => _isTippedOver.Value;
 
         protected override string ItemName => "쓰레기통";
-        protected override Vector3 HeldLocalPosition => _heldLocalPosition;
 
         public override string Prompt => IsTippedOver ? "쓰레기통 세우기" : base.Prompt;
 
