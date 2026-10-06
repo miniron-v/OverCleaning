@@ -201,30 +201,35 @@ namespace OverCleaning.InGame
             NetworkObject.ChangeOwnership(clientId);
         }
 
+        /// <summary>내려놓기 자리를 찾을 때 바라보는 쪽부터 넓혀 가는 각도들.</summary>
+        private static readonly float[] DropSearchAngles = { 0f, 30f, -30f, 60f, -60f, 90f, -90f, 135f, -135f, 180f };
+
         private void ServerDrop()
         {
             Rigidbody holderBody = HolderBody;
-            if (holderBody == null)
+            ServerRelease(holderBody != null ? FindDropPosition(holderBody) : transform.position);
+        }
+
+        /// <summary>
+        /// 바라보는 쪽을 먼저 보고, 막혀 있으면 좌우로 각도를 넓혀 가며 놓을 자리를 찾는다.
+        /// 사방이 다 막혀 있으면 들려 있던 그 자리에 놓는다. 내려놓기가 거부되는 경우는 없다.
+        /// </summary>
+        private Vector3 FindDropPosition(Rigidbody holderBody)
+        {
+            Vector3 offset = DropOffset;
+            float distance = offset.magnitude;
+            Vector3 forward = distance > 0.0001f ? offset / distance : transform.forward;
+
+            foreach (float angle in DropSearchAngles)
             {
-                ServerRelease(transform.position);
-                return;
+                Vector3 direction = Quaternion.AngleAxis(angle, Vector3.up) * forward;
+                Vector3 destination = holderBody.position + direction * distance;
+                if (CanPlace(holderBody.position, destination, holderBody, false) &&
+                    HasGroundSupport(destination))
+                    return destination;
             }
 
-            // 사람 몸과 겹치지 않도록 조금 앞에 내려놓는다.
-            Vector3 destination = holderBody.position + DropOffset;
-            if (!CanPlace(holderBody.position, destination, holderBody, false))
-            {
-                Debug.LogWarning($"앞에 장애물이 있거나 플레이어와 겹쳐 내려놓을 수 없습니다({ItemName}). " +
-                    "조금 물러나서 다시 시도하세요.", this);
-                return;
-            }
-            if (!HasGroundSupport(destination))
-            {
-                Debug.LogWarning($"내려놓을 위치에 평평한 바닥이 없습니다({ItemName}).", this);
-                return;
-            }
-
-            ServerRelease(destination);
+            return transform.position;
         }
 
         /// <summary>
