@@ -124,6 +124,10 @@ namespace OverCleaning.InGame
 
         private void LateUpdate()
         {
+            // 늦게 들어오면 든 사람의 플레이어가 청소기보다 늦게 스폰될 수 있다. 찾힐 때까지 다시 맞춘다.
+            if (IsSpawned && _holderClientId.Value != NoHolder && _holderBody == null)
+                ApplyHolder();
+
             // 든 사람이 아니면 그 사람이 알려준 방향을 그대로 따른다.
             if (IsHeld && !IsOwner)
                 transform.rotation = Quaternion.Euler(0f, _aimYaw.Value, 0f);
@@ -257,8 +261,16 @@ namespace OverCleaning.InGame
         {
             if (clientId == NoHolder || NetworkManager == null || NetworkManager.SpawnManager == null)
                 return null;
-            NetworkObject player = NetworkManager.SpawnManager.GetPlayerNetworkObject(clientId);
-            return player != null ? player.GetComponent<Rigidbody>() : null;
+
+            // GetPlayerNetworkObject는 서버가 아니면 남의 플레이어를 돌려주지 않는다.
+            // 모든 기기가 같은 방법으로 찾도록 스폰 목록에서 그 사람의 플레이어를 고른다.
+            foreach (NetworkObject spawned in NetworkManager.SpawnManager.SpawnedObjectsList)
+            {
+                if (spawned.IsPlayerObject && spawned.OwnerClientId == clientId)
+                    return spawned.GetComponent<Rigidbody>();
+            }
+
+            return null;
         }
 
         /// <summary>든 사람이 보는 쪽으로 돌린다. 든 사람의 기기에서만 불린다.</summary>
