@@ -3555,7 +3555,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::OverCleaning.InGame.CameraFollow
   _offset: {x: 0, y: 18, z: -13}
   _smoothTime: 0.15
-  _wideFieldOfView: 60
+  _wideFieldOfView: 45
   _zoomSpeed: 60
 --- !u!1 &357345657
 GameObject:
