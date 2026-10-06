@@ -261,6 +261,13 @@ namespace OverCleaning.InGame
             Physics.SyncTransforms();
         }
 
+        /// <summary>서버에서만 부른다. 부딪친 사람의 물건을 그 자리에 떨어뜨릴 때 쓴다.</summary>
+        internal void ServerForceDrop()
+        {
+            if (IsServer && IsHeld)
+                ServerDrop();
+        }
+
         /// <summary>들 수 있는 상태인지. 넘어져 있는 것처럼 들면 안 되는 사정을 여기서 막는다.</summary>
         protected virtual bool CanServerPickUp() => true;
 

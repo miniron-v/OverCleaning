@@ -64,6 +64,10 @@ namespace OverCleaning.EditorTools
             if (root.GetComponent<PlayerInteractor>() == null)
                 root.AddComponent<PlayerInteractor>();
 
+            // 기절한 모습은 모든 기기에서 그려야 하므로 자기 것만 켜는 목록에 넣지 않는다.
+            if (root.GetComponent<PlayerCrash>() == null)
+                root.AddComponent<PlayerCrash>();
+
             NetworkPlayer networkPlayer = root.GetComponent<NetworkPlayer>();
             if (networkPlayer == null)
                 networkPlayer = root.AddComponent<NetworkPlayer>();

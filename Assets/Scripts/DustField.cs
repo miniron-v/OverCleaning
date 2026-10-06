@@ -48,6 +48,9 @@ namespace OverCleaning.InGame
         /// 이 값도 저절로 같이 움직인다. 따로 맞출 필요가 없다.
         /// </summary>
         private int _nextDustId;
+
+        /// <summary>실제로 파티클에 쓰인 모양 목록. 비어 있던 경우의 기본 모양까지 반영한다.</summary>
+        private List<Texture2D> _activeTextures;
         private ParticleSystem.Particle[] _renderBuffer;
         private ParticleSystem.Particle[] _particles;
         private Material[] _runtimeMaterials;
@@ -219,6 +222,9 @@ namespace OverCleaning.InGame
                 _defaultTexture = CreateDefaultTexture();
                 textures.Add(_defaultTexture);
             }
+
+            // 쏟을 때 모양을 지정할 수 있도록, 실제로 쓰인 모양 목록을 들고 있는다.
+            _activeTextures = textures;
 
             _particleSystems = new ParticleSystem[textures.Count];
             _runtimeMaterials = new Material[textures.Count];
@@ -615,10 +621,15 @@ namespace OverCleaning.InGame
         /// 모아둔 먼지를 되돌리는 것이라 처음 만든 수보다 많아질 일은 없지만, 자리를 잡지 못한
         /// 먼지는 그냥 사라집니다.
         /// </summary>
-        public int SpillDust(Vector3 center, float radius, int count, int seed)
+        public int SpillDust(Vector3 center, float radius, int count, int seed, Texture2D texture = null)
         {
             if (!HasDustArrays || radius <= 0f || count <= 0)
                 return 0;
+
+            // 모양이 지정되면 그 모양으로만 쏟는다. 목록에 없는 모양이면 아무 모양이나 쓴다.
+            int fixedTextureIndex = texture != null && _activeTextures != null
+                ? _activeTextures.IndexOf(texture)
+                : -1;
 
             // 먼지 생성과 같은 방식이다. 같은 시드를 먹이면 어느 기기에서 돌려도 같은 자리에
             // 같은 수만큼 놓이므로 좌표를 주고받지 않아도 화면이 갈라지지 않는다.
@@ -633,7 +644,9 @@ namespace OverCleaning.InGame
                     continue;
 
                 _particles[RemainingDustCount] = CreateParticle(position, size);
-                _textureIndices[RemainingDustCount] = Random.Range(0, _particleSystems.Length);
+                _textureIndices[RemainingDustCount] = fixedTextureIndex >= 0
+                    ? fixedTextureIndex
+                    : Random.Range(0, _particleSystems.Length);
                 // 흡입되어 비었던 자리를 다시 쓴다. 그 자리에는 아직 살아 있는 먼지의 번호와
                 // 흡입 상태가 남아 있으므로, 새 번호를 붙이고 상태를 지운다.
                 _dustIds[RemainingDustCount] = _nextDustId++;
