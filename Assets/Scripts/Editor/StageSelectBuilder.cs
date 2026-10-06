@@ -333,7 +333,7 @@ namespace OverCleaning.EditorTools
             layout.childForceExpandHeight = false;
             RectTransform page = pageObject.GetComponent<RectTransform>();
 
-            TMP_Text stageNumber = UIBuilder.CreateLabel(page, "StageNumber", "STAGE 1", 30f, 40f);
+            TMP_Text stageNumber = UIBuilder.CreateLabel(page, "StageNumber", "STAGE 1-1", 30f, 40f);
             stageNumber.color = SubTextColor;
             TMP_Text stageName = UIBuilder.CreateLabel(page, "StageName", "스테이지 이름", 48f, 64f);
 

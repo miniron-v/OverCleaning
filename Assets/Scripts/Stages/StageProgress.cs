@@ -29,6 +29,6 @@ namespace OverCleaning.Stages
             PlayerPrefs.Save();
         }
 
-        private static string BuildKey(StageDefinition stage) => $"Stage{stage.Number}.Stars";
+        private static string BuildKey(StageDefinition stage) => $"Stage{stage.Code}.Stars";
     }
 }

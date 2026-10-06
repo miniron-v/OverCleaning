@@ -118,7 +118,7 @@ namespace OverCleaning.Lobby
 
         private void ShowStage(StageDefinition stage)
         {
-            _stageNumberText.text = stage != null ? $"STAGE {stage.Number}" : string.Empty;
+            _stageNumberText.text = stage != null ? $"STAGE {stage.Code}" : string.Empty;
             _stageNameText.text = stage != null ? stage.DisplayName : string.Empty;
             _minimizedStageNameText.text = _stageNameText.text;
             _goalText.text = stage != null ? $"목표: {stage.Goal}" : string.Empty;
