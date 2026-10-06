@@ -77,7 +77,7 @@ namespace OverCleaning.EditorTools
             MonoBehaviour[] ownerOnly =
             {
                 root.GetComponent<PlayerMovement>(),
-                root.GetComponent<PlayerVacuum>(),
+                root.GetComponent<VacuumCarrier>(),
                 root.GetComponent<KeyShuffleController>(),
                 root.GetComponent<PlayerInteractor>(),
             };

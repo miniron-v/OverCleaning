@@ -1,9 +1,14 @@
+using Unity.Netcode;
 using UnityEngine;
 
 namespace OverCleaning.InGame
 {
+    /// <summary>
+    /// 버린 먼지를 모으는 쓰레기통. 누적량은 모두가 같은 숫자를 봐야 하므로 서버가 갖는다.
+    /// 거리와 벽 판정은 계산일 뿐이라 어디서 불러도 되지만, 실제 누적은 서버에서만 일어난다.
+    /// </summary>
     [RequireComponent(typeof(Collider))]
-    public sealed class TrashCan : MonoBehaviour
+    public sealed class TrashCan : NetworkBehaviour
     {
         [Min(0.1f)] [SerializeField] private float _interactionRadius = 1.5f;
         [SerializeField] private LayerMask _obstacleLayers = ~0;
@@ -11,7 +16,9 @@ namespace OverCleaning.InGame
         private Collider _bodyCollider;
         private readonly RaycastHit[] _castBuffer = new RaycastHit[32];
 
-        public int ReceivedDustCount { get; private set; }
+        private readonly NetworkVariable<int> _receivedDust = new NetworkVariable<int>();
+
+        public int ReceivedDustCount => _receivedDust.Value;
 
         private void Awake() => _bodyCollider = GetComponent<Collider>();
 
@@ -42,11 +49,12 @@ namespace OverCleaning.InGame
             return true;
         }
 
+        /// <summary>먼지를 받아 쌓는다. 서버에서만 통한다.</summary>
         public bool TryReceiveDust(Vector3 position, Rigidbody playerBody, int amount)
         {
-            if (amount <= 0 || !CanReceiveDust(position, playerBody))
+            if (!IsServer || amount <= 0 || !CanReceiveDust(position, playerBody))
                 return false;
-            ReceivedDustCount += amount;
+            _receivedDust.Value += amount;
             return true;
         }
 
