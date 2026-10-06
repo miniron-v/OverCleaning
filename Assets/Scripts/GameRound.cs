@@ -22,8 +22,8 @@ namespace OverCleaning.InGame
 
         [Tooltip("한 판의 제한시간(초).")]
         [Min(10f)] [SerializeField] private float _roundDuration = 180f;
-        [Tooltip("결과 화면을 보여 주고 대기방으로 돌아가기까지의 시간(초).")]
-        [Min(1f)] [SerializeField] private float _resultDuration = 8f;
+        [Tooltip("확인을 누르지 않아도 대기방으로 돌아가는 시간(초). 자리 비운 사람을 위한 보조다.")]
+        [Min(1f)] [SerializeField] private float _resultDuration = 20f;
         [SerializeField] private DustField _dustField;
         [SerializeField] private GameScreen _gameScreen;
 
@@ -75,6 +75,14 @@ namespace OverCleaning.InGame
             _returnTime = NetworkManager.ServerTime.Time + _resultDuration;
         }
 
+        /// <summary>누가 눌렀든 확인 한 번이면 전원이 돌아간다. 판정은 서버가 한다.</summary>
+        [Rpc(SendTo.Server)]
+        private void RequestReturnRpc()
+        {
+            if (State != RoundState.Playing)
+                _returnTime = NetworkManager.ServerTime.Time;
+        }
+
         private void OnGUI()
         {
             if (!IsSpawned)
@@ -102,7 +110,7 @@ namespace OverCleaning.InGame
             PlayerScore[] scores = FindObjectsByType<PlayerScore>(FindObjectsSortMode.None);
             System.Array.Sort(scores, (left, right) => left.OwnerClientId.CompareTo(right.OwnerClientId));
 
-            float height = 110f + scores.Length * 24f;
+            float height = 140f + scores.Length * 24f;
             float panelLeft = (Screen.width - width) * 0.5f;
             float panelTop = (Screen.height - height) * 0.5f;
             GUI.Box(new Rect(panelLeft, panelTop, width, height), string.Empty);
@@ -122,8 +130,12 @@ namespace OverCleaning.InGame
                     $"{score.Nickname,-16} {score.CleanedDustCount,8}개 {score.CrashCount,10}회");
             }
 
-            GUI.Label(new Rect(panelLeft, panelTop + height - 26f, width, 20f),
-                "잠시 후 대기방으로 돌아갑니다...",
+            if (GUI.Button(new Rect(panelLeft + (width - 120f) * 0.5f, panelTop + height - 58f, 120f, 30f),
+                    "확인"))
+                RequestReturnRpc();
+
+            GUI.Label(new Rect(panelLeft, panelTop + height - 24f, width, 20f),
+                "확인을 누르면 대기방으로 돌아갑니다",
                 new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter });
         }
     }
