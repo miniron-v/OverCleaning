@@ -39,6 +39,9 @@ namespace OverCleaning.InGame
         [Tooltip("장착은 든 사람의 정해진 자리로 붙고, 들기는 잡은 자리 그대로 들려 따라온다.")]
         [SerializeField] private CarryMode _carryMode = CarryMode.Equip;
 
+        [Tooltip("들기 물건이 보는 쪽을 따라 도는 속도. 클수록 빨리 따라붙는다.")]
+        [Min(0.1f)] [SerializeField] private float _carryFollowSharpness = 8f;
+
         [Tooltip("물건을 가리거나 놓지 못하게 막는 벽과 장애물 레이어.")]
         [SerializeField] protected LayerMask _obstacleLayers = ~0;
 
@@ -48,6 +51,10 @@ namespace OverCleaning.InGame
         protected BoxCollider _bodyCollider;
         protected readonly Collider[] _overlapBuffer = new Collider[32];
         protected readonly RaycastHit[] _castBuffer = new RaycastHit[32];
+
+        /// <summary>잡는 순간의 간격과 각도. 든 사람이 보는 방향 기준으로 기억해 둔다.</summary>
+        private Vector3 _carryGrabOffset;
+        private float _carryGrabYaw;
 
         public bool IsHeld => HolderBody != null;
 
@@ -122,6 +129,14 @@ namespace OverCleaning.InGame
             // 장착만 정해진 자리로 붙인다. 들기는 잡은 자리 그대로 들려 따라온다.
             if (HolderBody != null && _carryMode == CarryMode.Equip)
                 transform.localPosition = HeldLocalPosition;
+            if (HolderBody != null && _carryMode == CarryMode.Carry)
+            {
+                // 잡는 순간의 간격을 보는 방향 기준으로 기억한다. 몸을 돌리면 간격째로 따라온다.
+                Quaternion inverseFacing = Quaternion.Inverse(
+                    Quaternion.LookRotation(GetHolderFacing(), Vector3.up));
+                _carryGrabOffset = inverseFacing * transform.localPosition;
+                _carryGrabYaw = (inverseFacing * transform.localRotation).eulerAngles.y;
+            }
             Physics.SyncTransforms();
             OnCarryChanged();
         }
@@ -131,9 +146,33 @@ namespace OverCleaning.InGame
         {
         }
 
-        /// <summary>든 사람이 보는 쪽에 반응한다. 돌 필요가 없는 물건은 가만히 둔다.</summary>
+        /// <summary>
+        /// 든 사람이 보는 쪽에 반응한다. 들기 물건은 잡았을 때의 간격을 유지한 채
+        /// 보는 방향을 따라 부드럽게 돌아 따라온다. 든 사람의 기기에서만 불린다.
+        /// </summary>
         public virtual void AimAt(Vector3 facingDirection)
         {
+            if (_carryMode != CarryMode.Carry || !IsHeld || !IsOwner ||
+                facingDirection.sqrMagnitude < 0.000001f)
+                return;
+
+            // 든 사람의 몸통은 돌지 않으므로 로컬 좌표가 곧 사람 기준 간격이다.
+            Quaternion facing = Quaternion.LookRotation(facingDirection, Vector3.up);
+            float alpha = 1f - Mathf.Exp(-_carryFollowSharpness * Time.fixedDeltaTime);
+            transform.localPosition = Vector3.Lerp(
+                transform.localPosition, facing * _carryGrabOffset, alpha);
+            transform.localRotation = Quaternion.Slerp(
+                transform.localRotation, facing * Quaternion.Euler(0f, _carryGrabYaw, 0f), alpha);
+        }
+
+        /// <summary>든 사람이 보는 방향. 알 수 없으면 정면으로 친다.</summary>
+        private Vector3 GetHolderFacing()
+        {
+            PlayerMovement holderMovement =
+                HolderBody != null ? HolderBody.GetComponent<PlayerMovement>() : null;
+            Vector3 facingDirection =
+                holderMovement != null ? holderMovement.FacingDirection : Vector3.forward;
+            return facingDirection.sqrMagnitude > 0.000001f ? facingDirection : Vector3.forward;
         }
 
         /// <summary>들기를 서버에 요청한다. 자기 캐릭터를 조작하는 클라이언트에서만 불린다.</summary>
