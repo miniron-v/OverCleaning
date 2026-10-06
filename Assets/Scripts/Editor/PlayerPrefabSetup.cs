@@ -64,6 +64,14 @@ namespace OverCleaning.EditorTools
             if (root.GetComponent<PlayerInteractor>() == null)
                 root.AddComponent<PlayerInteractor>();
 
+            // 기절한 모습은 모든 기기에서 그려야 하므로 자기 것만 켜는 목록에 넣지 않는다.
+            if (root.GetComponent<PlayerCrash>() == null)
+                root.AddComponent<PlayerCrash>();
+
+            // 전적은 결과 화면에서 모두가 읽으므로 역시 목록에 넣지 않는다.
+            if (root.GetComponent<PlayerScore>() == null)
+                root.AddComponent<PlayerScore>();
+
             NetworkPlayer networkPlayer = root.GetComponent<NetworkPlayer>();
             if (networkPlayer == null)
                 networkPlayer = root.AddComponent<NetworkPlayer>();
@@ -77,7 +85,7 @@ namespace OverCleaning.EditorTools
             MonoBehaviour[] ownerOnly =
             {
                 root.GetComponent<PlayerMovement>(),
-                root.GetComponent<VacuumCarrier>(),
+                root.GetComponent<ItemCarrier>(),
                 root.GetComponent<KeyShuffleController>(),
                 root.GetComponent<PlayerInteractor>(),
             };

@@ -21,6 +21,9 @@ namespace OverCleaning.InGame
         [SerializeField] private LayerMask _obstacleLayers = ~0;
         [Min(0f)] [SerializeField] private float _edgeMargin = 0.1f;
         [Min(0)] [SerializeField] private int _dustCount = 300;
+        [Tooltip("쏟기와 흩뿌리기로 늘어날 수 있는 여유 칸. 부딪칠 때 나오는 씨앗은 새로 생기는 " +
+                 "먼지라 이 여유가 없으면 바닥이 차 있을 때 조용히 사라진다.")]
+        [Min(0)] [SerializeField] private int _spillHeadroom = 150;
         [Tooltip("먼지 크기의 최솟값과 최댓값.")]
         [SerializeField] private Vector2 _dustSizeRange = new Vector2(0.1f, 0.25f);
         [SerializeField] private Color[] _dustColors =
@@ -42,6 +45,15 @@ namespace OverCleaning.InGame
 
         /// <summary>먼지마다 붙는 번호. 자리가 바뀌어도 따라다녀 기기 사이에서 같은 먼지를 가리킨다.</summary>
         private int[] _dustIds;
+
+        /// <summary>
+        /// 쏟은 먼지에 붙일 다음 번호. 쏟기는 모든 기기에서 같은 시드로 같은 수만큼 도므로
+        /// 이 값도 저절로 같이 움직인다. 따로 맞출 필요가 없다.
+        /// </summary>
+        private int _nextDustId;
+
+        /// <summary>실제로 파티클에 쓰인 모양 목록. 비어 있던 경우의 기본 모양까지 반영한다.</summary>
+        private List<Texture2D> _activeTextures;
         private ParticleSystem.Particle[] _renderBuffer;
         private ParticleSystem.Particle[] _particles;
         private Material[] _runtimeMaterials;
@@ -69,6 +81,9 @@ namespace OverCleaning.InGame
         private readonly NetworkVariable<int> _seed = new NetworkVariable<int>();
 
         private bool _isBuilt;
+
+        /// <summary>먼지가 깔렸는가. 깔리기 전의 0개를 다 치운 것으로 오해하지 않게 한다.</summary>
+        public bool IsBuilt => _isBuilt;
 
         /// <summary>
         /// 플레이 중 재컴파일되면 직렬화되지 않는 배열만 사라지고 수량은 남는다.
@@ -214,19 +229,44 @@ namespace OverCleaning.InGame
                 textures.Add(_defaultTexture);
             }
 
+            // 쏟을 때 모양을 지정할 수 있도록, 실제로 쓰인 모양 목록을 들고 있는다.
+            _activeTextures = textures;
+
             _particleSystems = new ParticleSystem[textures.Count];
             _runtimeMaterials = new Material[textures.Count];
             for (int index = 0; index < textures.Count; index++)
-            {
-                var child = new GameObject($"Dust {textures[index].name}");
-                child.transform.SetParent(transform, false);
-                _particleSystems[index] = child.AddComponent<ParticleSystem>();
-                ConfigureParticleSystem(_particleSystems[index]);
-                _runtimeMaterials[index] = CreateDustMaterial(textures[index]);
-                var particleRenderer = child.GetComponent<ParticleSystemRenderer>();
-                particleRenderer.renderMode = ParticleSystemRenderMode.HorizontalBillboard;
-                particleRenderer.sharedMaterial = _runtimeMaterials[index];
-            }
+                CreateDustSystem(textures[index], index);
+        }
+
+        private void CreateDustSystem(Texture2D texture, int index)
+        {
+            var child = new GameObject($"Dust {texture.name}");
+            child.transform.SetParent(transform, false);
+            _particleSystems[index] = child.AddComponent<ParticleSystem>();
+            ConfigureParticleSystem(_particleSystems[index]);
+            _runtimeMaterials[index] = CreateDustMaterial(texture);
+            var particleRenderer = child.GetComponent<ParticleSystemRenderer>();
+            particleRenderer.renderMode = ParticleSystemRenderMode.HorizontalBillboard;
+            particleRenderer.sharedMaterial = _runtimeMaterials[index];
+        }
+
+        /// <summary>
+        /// 이 모양을 그릴 파티클을 찾고, 없으면 새로 만든다. 플레이어마다 원하는 모양을
+        /// 들고 와도 받아 줄 수 있다. 쏟기는 모든 기기에서 같은 순서로 돌므로
+        /// 새 모양이 받는 자리 번호도 기기마다 같다.
+        /// </summary>
+        private int EnsureDustSystem(Texture2D texture)
+        {
+            int index = _activeTextures.IndexOf(texture);
+            if (index >= 0)
+                return index;
+
+            index = _particleSystems.Length;
+            System.Array.Resize(ref _particleSystems, index + 1);
+            System.Array.Resize(ref _runtimeMaterials, index + 1);
+            _activeTextures.Add(texture);
+            CreateDustSystem(texture, index);
+            return index;
         }
 
         private void ConfigureParticleSystem(ParticleSystem particleSystem)
@@ -238,7 +278,7 @@ namespace OverCleaning.InGame
             main.startSpeed = 0f;
             main.startLifetime = float.PositiveInfinity;
             main.simulationSpace = ParticleSystemSimulationSpace.World;
-            main.maxParticles = Mathf.Max(1, _dustCount);
+            main.maxParticles = Mathf.Max(1, _dustCount + _spillHeadroom);
             var emission = particleSystem.emission;
             emission.enabled = false;
             var shape = particleSystem.shape;
@@ -304,11 +344,13 @@ namespace OverCleaning.InGame
 
         private void GenerateDust()
         {
-            _particles = new ParticleSystem.Particle[_dustCount];
-            _textureIndices = new int[_dustCount];
-            _dustIds = new int[_dustCount];
-            _renderBuffer = new ParticleSystem.Particle[_dustCount];
-            _suctionStates = new SuctionState[_dustCount];
+            // 쏟기로 늘어날 수 있는 만큼 여유를 두고 잡는다. 처음 까는 수는 _dustCount 그대로다.
+            int capacity = _dustCount + _spillHeadroom;
+            _particles = new ParticleSystem.Particle[capacity];
+            _textureIndices = new int[capacity];
+            _dustIds = new int[capacity];
+            _renderBuffer = new ParticleSystem.Particle[capacity];
+            _suctionStates = new SuctionState[capacity];
             RemainingDustCount = 0;
             for (int index = 0; index < _dustCount; index++)
             {
@@ -323,6 +365,9 @@ namespace OverCleaning.InGame
                     RemainingDustCount++;
                 }
             }
+
+            // 쏟은 먼지는 이 뒤 번호를 이어 받는다. 살아 있는 먼지와 겹치지 않게 한다.
+            _nextDustId = RemainingDustCount;
 
             UpdateRenderedParticles();
             if (RemainingDustCount < _dustCount)
@@ -599,6 +644,92 @@ namespace OverCleaning.InGame
             if (removedCount > 0)
                 UpdateRenderedParticles();
             return removedCount;
+        }
+
+        /// <summary>
+        /// 쓰레기통이 넘어졌을 때처럼 먼지를 그 자리 주변 바닥에 다시 흩뿌리고 실제로 놓은 수를 반환합니다.
+        /// 모아둔 먼지를 되돌리는 것이라 처음 만든 수보다 많아질 일은 없지만, 자리를 잡지 못한
+        /// 먼지는 그냥 사라집니다.
+        /// </summary>
+        public int SpillDust(Vector3 center, float radius, int count, int seed, Texture2D texture = null)
+        {
+            if (!HasDustArrays || radius <= 0f || count <= 0)
+                return 0;
+
+            // 모양이 지정되면 그 모양으로만 쏟는다. 처음 보는 모양이면 전용 파티클을 만들어 받는다.
+            int fixedTextureIndex = texture != null && _activeTextures != null
+                ? EnsureDustSystem(texture)
+                : -1;
+
+            // 먼지 생성과 같은 방식이다. 같은 시드를 먹이면 어느 기기에서 돌려도 같은 자리에
+            // 같은 수만큼 놓이므로 좌표를 주고받지 않아도 화면이 갈라지지 않는다.
+            Random.State previousState = Random.state;
+            Random.InitState(seed);
+
+            int spilledCount = 0;
+            for (int index = 0; index < count && RemainingDustCount < _particles.Length; index++)
+            {
+                float size = Random.Range(_dustSizeRange.x, _dustSizeRange.y);
+                if (!TryFindSpillPosition(center, radius, size, out Vector3 position))
+                    continue;
+
+                _particles[RemainingDustCount] = CreateParticle(position, size);
+                if (fixedTextureIndex >= 0)
+                {
+                    // 지정한 모양은 제 색을 그대로 보여 준다. 바닥 먼지 색으로 물들이지 않는다.
+                    ParticleSystem.Particle particle = _particles[RemainingDustCount];
+                    particle.startColor = Color.white;
+                    _particles[RemainingDustCount] = particle;
+                }
+                _textureIndices[RemainingDustCount] = fixedTextureIndex >= 0
+                    ? fixedTextureIndex
+                    : Random.Range(0, _particleSystems.Length);
+                // 흡입되어 비었던 자리를 다시 쓴다. 그 자리에는 아직 살아 있는 먼지의 번호와
+                // 흡입 상태가 남아 있으므로, 새 번호를 붙이고 상태를 지운다.
+                _dustIds[RemainingDustCount] = _nextDustId++;
+                _suctionStates[RemainingDustCount] = default;
+                RemainingDustCount++;
+                spilledCount++;
+            }
+
+            Random.state = previousState;
+            if (spilledCount < count && RemainingDustCount >= _particles.Length)
+                Debug.LogWarning($"먼지가 가득 차 {count - spilledCount}개를 쏟지 못했습니다. " +
+                    "Spill Headroom을 늘려 주세요.", this);
+            if (spilledCount > 0)
+                UpdateRenderedParticles();
+            return spilledCount;
+        }
+
+        private bool TryFindSpillPosition(Vector3 center, float radius, float size, out Vector3 position)
+        {
+            // 회전한 사각 파티클의 모서리까지 포함하는 보수적인 검사 범위입니다.
+            float halfExtent = size * Mathf.Sqrt(2f) * 0.5f;
+            float inset = halfExtent + _edgeMargin;
+            position = default;
+
+            for (int attempt = 0; attempt < PlacementAttemptsPerParticle; attempt++)
+            {
+                Vector2 offset = Random.insideUnitCircle * radius;
+                Vector3 candidate = center + new Vector3(offset.x, 0f, offset.y);
+                // 쏟아진 자리가 어느 바닥인지는 알 수 없으므로 후보마다 찾습니다.
+                foreach (Collider floor in _activeFloors)
+                {
+                    if (!TryGetFloorPoint(floor, candidate, out Vector3 surface))
+                        continue;
+                    if (!IsFootprintSupported(floor, surface, inset))
+                        continue;
+
+                    Vector3 point = surface + Vector3.up * SurfaceOffset;
+                    if (OverlapsObstacle(floor, point, halfExtent))
+                        continue;
+
+                    position = point;
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private void OnValidate() => ValidateSettings();
