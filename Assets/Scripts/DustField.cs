@@ -44,7 +44,7 @@ namespace OverCleaning.InGame
         private struct SuctionState
         {
             public bool IsActive;
-            public VacuumCarrier Source;
+            public Vacuum Source;
             public Vector3 StartPosition;
             public float StartSize;
             public float ElapsedTime;
@@ -356,7 +356,7 @@ namespace OverCleaning.InGame
         }
 
         /// <summary>흡입 가능한 먼지를 예약하고 실제 선택 수량을 반환합니다.</summary>
-        public int BeginSuction(VacuumCarrier source, int maximumCount, float duration)
+        public int BeginSuction(Vacuum source, int maximumCount, float duration)
         {
             if (_particles == null || source == null || !source.IsRunning || maximumCount <= 0 || duration <= 0f)
                 return 0;
@@ -433,7 +433,7 @@ namespace OverCleaning.InGame
             _suctionStates[index] = default;
         }
 
-        public void CancelSuctionFor(VacuumCarrier source)
+        public void CancelSuctionFor(Vacuum source)
         {
             bool changed = false;
             for (int index = 0; index < RemainingDustCount; index++)
