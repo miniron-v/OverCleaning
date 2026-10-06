@@ -3205,6 +3205,7 @@ MonoBehaviour:
   ShowTopMostFoldoutHeaderGroup: 1
   _carryMode: 1
   _carrySpeedMultiplier: 0.7
+  _pickUpRange: 0.8
   _interactionRadius: 1.5
   _obstacleLayers:
     serializedVersion: 2

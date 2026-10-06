@@ -45,6 +45,9 @@ namespace OverCleaning.InGame
         [Tooltip("들고 있는 동안 든 사람의 이동 속도 배율. 1이면 그대로, 낮출수록 무겁다.")]
         [Range(0.1f, 1f)] [SerializeField] private float _carrySpeedMultiplier = 1f;
 
+        [Tooltip("이보다 가까워야 들 수 있다. 몸에서 물건 겉면까지의 거리다.")]
+        [Min(0.1f)] [SerializeField] private float _pickUpRange = 1.5f;
+
         [Tooltip("물건을 가리거나 놓지 못하게 막는 벽과 장애물 레이어.")]
         [SerializeField] protected LayerMask _obstacleLayers = ~0;
 
@@ -83,8 +86,29 @@ namespace OverCleaning.InGame
         /// <summary>
         /// 들린 물건은 ItemCarrier가 다루므로 상호작용 대상에서 빠진다. 손이 찬 사람에게는
         /// 다른 물건도 대상이 아니다. 한 번에 하나만 들 수 있어서 눌러 봐야 소용이 없다.
+        /// 물건마다 정한 거리보다 멀어도 대상이 아니다.
         /// </summary>
-        public virtual bool CanInteract => isActiveAndEnabled && !IsHeld && !IsLocalPlayerCarrying;
+        public virtual bool CanInteract =>
+            isActiveAndEnabled && !IsHeld && !IsLocalPlayerCarrying && IsLocalPlayerInPickUpRange;
+
+        private bool IsLocalPlayerInPickUpRange
+        {
+            get
+            {
+                NetworkManager manager = NetworkManager.Singleton;
+                if (manager == null || !manager.IsListening || manager.SpawnManager == null)
+                    return true;
+                NetworkObject player = manager.SpawnManager.GetLocalPlayerObject();
+                return player != null && IsInPickUpRange(player.transform.position);
+            }
+        }
+
+        /// <summary>그 자리에서 들 수 있는 거리인가. 몸 가운데 높이에서 물건 겉면까지 잰다.</summary>
+        private bool IsInPickUpRange(Vector3 holderPosition)
+        {
+            Vector3 hand = holderPosition + Vector3.up * 0.5f;
+            return Vector3.Distance(hand, _bodyCollider.ClosestPoint(hand)) <= _pickUpRange;
+        }
 
         public virtual string Prompt => $"{ItemName} 들기";
 
@@ -241,6 +265,12 @@ namespace OverCleaning.InGame
             if (holderBody.GetComponentInChildren<CarriableItem>() != null)
             {
                 Debug.Log($"이미 다른 것을 들고 있어 들 수 없습니다({ItemName}).", this);
+                return;
+            }
+            // 거리는 서버가 다시 확인한다. 안내만 믿으면 늦은 요청이 멀리서 통한다.
+            if (!IsInPickUpRange(holderBody.position))
+            {
+                Debug.Log($"너무 멀어 들 수 없습니다({ItemName}).", this);
                 return;
             }
             // 장착은 물건이 든 사람 자리로 옮겨 가므로 가는 길을 검사한다. 들어 올리는 동안
