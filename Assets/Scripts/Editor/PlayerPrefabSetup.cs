@@ -68,6 +68,10 @@ namespace OverCleaning.EditorTools
             if (root.GetComponent<PlayerCrash>() == null)
                 root.AddComponent<PlayerCrash>();
 
+            // 전적은 결과 화면에서 모두가 읽으므로 역시 목록에 넣지 않는다.
+            if (root.GetComponent<PlayerScore>() == null)
+                root.AddComponent<PlayerScore>();
+
             NetworkPlayer networkPlayer = root.GetComponent<NetworkPlayer>();
             if (networkPlayer == null)
                 networkPlayer = root.AddComponent<NetworkPlayer>();

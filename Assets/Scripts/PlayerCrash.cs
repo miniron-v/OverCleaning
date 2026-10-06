@@ -122,6 +122,11 @@ namespace OverCleaning.InGame
 
             _stunnedUntil.Value = NetworkManager.ServerTime.Time + _stunDuration;
 
+            // 전적에 더한다.
+            PlayerScore score = GetComponent<PlayerScore>();
+            if (score != null)
+                score.ServerAddCrash();
+
             // 들고 있던 것은 그 자리에 떨어뜨린다.
             CarriableItem heldItem = GetComponentInChildren<CarriableItem>();
             if (heldItem != null)

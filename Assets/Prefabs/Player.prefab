@@ -21,6 +21,7 @@ GameObject:
   - component: {fileID: 5129847362018475903}
   - component: {fileID: 5829598544476728502}
   - component: {fileID: 912834710293847561}
+  - component: {fileID: 912834710293847562}
   m_Layer: 0
   m_Name: Player
   m_TagString: Untagged
@@ -384,3 +385,15 @@ MonoBehaviour:
   _furDustCount: 10
   _furDustRadius: 1.5
   _furDustTexture: {fileID: 2800000, guid: 973ab1b4cf52476293979728166c29d1, type: 3}
+--- !u!114 &912834710293847562
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1868286105046901289}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5788380ebf63404db19261a4be4877c1, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::OverCleaning.InGame.PlayerScore

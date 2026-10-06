@@ -243,6 +243,12 @@ namespace OverCleaning.InGame
 
             if (_storedDust.Value < _dustCapacity)
                 _storedDust.Value++;
+
+            // 빨아들인 사람의 전적에 더한다.
+            PlayerScore score = HolderBody != null ? HolderBody.GetComponent<PlayerScore>() : null;
+            if (score != null)
+                score.ServerAddCleanedDust(1);
+
             RemoveDustRpc(dustId);
         }
 
