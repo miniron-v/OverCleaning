@@ -1,52 +1,64 @@
 using Unity.Netcode;
 using UnityEngine;
-using UnityEngine.Rendering;
 
 namespace OverCleaning.InGame
 {
     /// <summary>
-    /// 이 오브젝트 밑의 벽 가운데 플레이어 근처에 있는 것을 반투명하게 만든다.
+    /// 이 오브젝트 밑의 벽을, 내 캐릭터를 중심으로 한 구 안에 든 부분만 반투명하게 만든다.
     /// 위에서 내려다보는 화면이라 앞쪽 벽이 플레이어를 가리기 때문이다.
     ///
-    /// 누구 근처인지는 보는 사람마다 다르므로 각자 자기 기기에서만 계산한다. 서버에 알릴
-    /// 것이 없다. 벽마다 머티리얼을 복제해 쓰는데, 벽이 쓰는 머티리얼을 청소기 같은 다른
-    /// 물건도 함께 쓰고 있어 원본을 고치면 그쪽까지 투명해진다.
-    ///
-    /// Renderer의 첫 머티리얼만 다룬다. 벽은 머티리얼 하나짜리 상자다.
+    /// 벽 전체가 아니라 픽셀 단위로 가리는 것은 셰이더(WallSphereFade)가 한다. 여기서는
+    /// 벽 머티리얼을 그 셰이더로 바꿔 끼우고, 매 프레임 내 위치를 전역으로 알려 준다.
+    /// 누구 근처인지는 보는 사람마다 다르므로 각자 자기 기기에서만 계산한다.
     /// </summary>
     public sealed class WallFader : MonoBehaviour
     {
         private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
+        private static readonly int FadedAlphaId = Shader.PropertyToID("_FadedAlpha");
 
-        [Tooltip("이 반경 안에 든 벽이 반투명해진다.")]
-        [Min(0.1f)] [SerializeField] private float _fadeRadius = 4f;
-        [Tooltip("반투명해진 벽의 불투명도. 0이면 완전히 사라진다.")]
+        /// <summary>내 캐릭터 위치(xyz)와 반경(w). 모든 벽이 같은 값을 읽는 전역이다.</summary>
+        private static readonly int FadeCenterId = Shader.PropertyToID("_WallFadeCenter");
+
+        [Tooltip("내 캐릭터를 중심으로 이 반경(구)에 든 벽 부분만 반투명해진다.")]
+        [Min(0.1f)] [SerializeField] private float _fadeRadius = 3f;
+        [Tooltip("반투명해진 부분의 불투명도. 0이면 완전히 사라진다.")]
         [Range(0f, 1f)] [SerializeField] private float _fadedAlpha = 0.2f;
-        [Tooltip("1초에 바뀌는 불투명도. 벽이 툭 사라지지 않게 한다.")]
-        [Min(0.1f)] [SerializeField] private float _fadeSpeed = 5f;
 
         private Renderer[] _walls;
-        private Material[] _opaqueMaterials;
         private Material[] _fadeMaterials;
-        private float[] _alphas;
         private Transform _localPlayer;
 
         private void Awake()
         {
+            Shader shader = Shader.Find("OverCleaning/WallSphereFade");
+            if (shader == null)
+            {
+                Debug.LogError("WallSphereFade 셰이더를 찾지 못했습니다.", this);
+                enabled = false;
+                return;
+            }
+
+            // 원본 머티리얼은 다른 물건도 함께 쓰므로 벽마다 복제해 바꿔 끼운다.
             _walls = GetComponentsInChildren<Renderer>();
-            _opaqueMaterials = new Material[_walls.Length];
             _fadeMaterials = new Material[_walls.Length];
-            _alphas = new float[_walls.Length];
             for (int index = 0; index < _walls.Length; index++)
             {
-                _opaqueMaterials[index] = _walls[index].sharedMaterial;
-                _alphas[index] = 1f;
+                Material original = _walls[index].sharedMaterial;
+                Material fadeMaterial = new Material(shader);
+                if (original != null && original.HasProperty(BaseColorId))
+                    fadeMaterial.SetColor(BaseColorId, original.GetColor(BaseColorId));
+                fadeMaterial.SetFloat(FadedAlphaId, _fadedAlpha);
+                _fadeMaterials[index] = fadeMaterial;
+                _walls[index].sharedMaterial = fadeMaterial;
             }
         }
 
         private void OnDestroy()
         {
-            // 복제한 머티리얼은 에셋이 아니라 이 컴포넌트가 만든 것이므로 직접 치운다.
+            // 전역을 꺼 두고, 복제한 머티리얼은 에셋이 아니라 여기서 만든 것이므로 직접 치운다.
+            Shader.SetGlobalVector(FadeCenterId, Vector4.zero);
+            if (_fadeMaterials == null)
+                return;
             foreach (Material material in _fadeMaterials)
             {
                 if (material != null)
@@ -61,59 +73,10 @@ namespace OverCleaning.InGame
             if (_localPlayer == null)
                 return;
 
-            Vector3 position = _localPlayer.position;
-            float squaredRadius = _fadeRadius * _fadeRadius;
-            float step = _fadeSpeed * Time.deltaTime;
-            for (int index = 0; index < _walls.Length; index++)
-            {
-                // 벽 하나가 길게 뻗어 있어 중심까지의 거리로는 가까운 끝을 놓친다.
-                float target = _walls[index].bounds.SqrDistance(position) <= squaredRadius
-                    ? _fadedAlpha
-                    : 1f;
-                if (Mathf.Approximately(_alphas[index], target))
-                    continue;
-
-                _alphas[index] = Mathf.MoveTowards(_alphas[index], target, step);
-                ApplyAlpha(index);
-            }
-        }
-
-        private void ApplyAlpha(int index)
-        {
-            Renderer wall = _walls[index];
-            if (_alphas[index] >= 1f)
-            {
-                // 다 돌아왔으면 원래 머티리얼로 되돌려 불투명하게 그린다.
-                wall.sharedMaterial = _opaqueMaterials[index];
-                return;
-            }
-
-            if (_fadeMaterials[index] == null)
-                _fadeMaterials[index] = CreateFadeMaterial(_opaqueMaterials[index]);
-
-            Material fadeMaterial = _fadeMaterials[index];
-            Color color = fadeMaterial.GetColor(BaseColorId);
-            color.a = _alphas[index];
-            fadeMaterial.SetColor(BaseColorId, color);
-            wall.sharedMaterial = fadeMaterial;
-        }
-
-        /// <summary>
-        /// URP Lit 머티리얼을 반투명으로 바꾼 복제본을 만든다.
-        /// 인스펙터에서 Surface Type을 바꿀 때 URP가 손대는 값들을 그대로 맞춰 준다.
-        /// </summary>
-        private static Material CreateFadeMaterial(Material opaqueMaterial)
-        {
-            var material = new Material(opaqueMaterial);
-            material.SetFloat("_Surface", 1f);
-            material.SetFloat("_Blend", 0f);
-            material.SetFloat("_ZWrite", 0f);
-            material.SetFloat("_SrcBlend", (float)BlendMode.SrcAlpha);
-            material.SetFloat("_DstBlend", (float)BlendMode.OneMinusSrcAlpha);
-            material.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
-            material.SetOverrideTag("RenderType", "Transparent");
-            material.renderQueue = (int)RenderQueue.Transparent;
-            return material;
+            // 바닥이 아니라 몸통 높이를 중심으로 잡아야 벽의 가려지는 높이가 자연스럽다.
+            Vector3 position = _localPlayer.position + Vector3.up * 0.9f;
+            Shader.SetGlobalVector(FadeCenterId,
+                new Vector4(position.x, position.y, position.z, _fadeRadius));
         }
 
         /// <summary>
