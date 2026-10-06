@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using OverCleaning.InGame;
 using OverCleaning.Interaction;
 using Unity.Netcode;
 using Unity.Netcode.Components;
@@ -171,14 +172,16 @@ namespace OverCleaning.Lobby
         }
 
         /// <summary>
-        /// 앉은 동안은 걷지 못하고 부딪히지도 않는다. 콜라이더가 남아 있으면 차가 탄 사람에게 막힌다.
-        /// 콜라이더는 내린 뒤 차를 벗어났을 때 다시 켠다.
+        /// 앉은 동안은 걷지 못하고 부딪히지도 않으며, 늘 차와 같은 쪽을 본다.
+        /// 콜라이더가 남아 있으면 차가 탄 사람에게 막힌다. 콜라이더는 내린 뒤 차를 벗어났을 때 다시 켠다.
         /// 몸은 자기 것만 직접 움직이므로 물리 설정은 자기 캐릭터만 바꾼다.
         /// </summary>
-        private static void SetSeated(NetworkObject player, bool isSeated)
+        private void SetSeated(NetworkObject player, bool isSeated)
         {
             if (isSeated && player.TryGetComponent(out Collider body))
                 body.enabled = false;
+            if (player.TryGetComponent(out PlayerModelFacing facing))
+                facing.FacingTarget = isSeated ? transform : null;
             if (!player.IsOwner)
                 return;
 

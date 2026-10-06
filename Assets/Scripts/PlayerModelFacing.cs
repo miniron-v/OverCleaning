@@ -14,6 +14,12 @@ namespace OverCleaning.InGame
 
         private Vector3 _previousPosition;
 
+        /// <summary>
+        /// 정해지면 이동 방향 대신 이 대상과 같은 쪽을 바로 본다. 예: 차에 탄 동안의 차.
+        /// 차 위에서 생기는 위치 변화는 걸은 방향이 아니기 때문이다.
+        /// </summary>
+        public Transform FacingTarget { get; set; }
+
         private void OnEnable()
         {
             _previousPosition = transform.position;
@@ -23,6 +29,12 @@ namespace OverCleaning.InGame
         {
             Vector3 delta = transform.position - _previousPosition;
             _previousPosition = transform.position;
+            if (FacingTarget != null)
+            {
+                _model.rotation = Quaternion.LookRotation(Vector3.ProjectOnPlane(FacingTarget.forward, Vector3.up), Vector3.up);
+                return;
+            }
+
             delta.y = 0f;
             if (delta.sqrMagnitude < 0.000001f)
                 return;
