@@ -10,6 +10,16 @@ namespace OverCleaning.InGame
     /// </summary>
     public sealed class Vacuum : CarriableItem
     {
+        /// <summary>조준 회전 방식. 에디터에서 고른다.</summary>
+        public enum AimMode
+        {
+            /// <summary>일정 각도씩 끊어 돌며 경로를 검사한다.</summary>
+            Stepped,
+
+            /// <summary>남은 각도의 일정 비율씩 다가가 부드럽게 돈다. 벽에 막히면 멈추는 것은 같다.</summary>
+            Smooth,
+        }
+
         private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
 
         [SerializeField] private Transform _suctionPoint;
@@ -23,6 +33,10 @@ namespace OverCleaning.InGame
         [Min(1)] [SerializeField] private int _dustCapacity = 50;
         [Tooltip("비우는 동안 초당 쓰레기통으로 옮기는 먼지 수. 적게 담겼으면 그만큼 빨리 끝난다.")]
         [Min(1f)] [SerializeField] private float _emptyDustPerSecond = 10f;
+        [Tooltip("조준 회전 방식. Stepped는 일정 각도씩, Smooth는 보간으로 부드럽게 돈다.")]
+        [SerializeField] private AimMode _aimMode = AimMode.Stepped;
+        [Tooltip("Smooth 회전의 반응 속도. 클수록 빨리 따라붙는다.")]
+        [Min(0.1f)] [SerializeField] private float _aimSmoothing = 10f;
 
         /// <summary>서버가 정한다. 먼지통에 든 확정 수량. 모두가 같은 숫자를 본다.</summary>
         private readonly NetworkVariable<int> _storedDust = new NetworkVariable<int>();
@@ -113,13 +127,26 @@ namespace OverCleaning.InGame
             if (angle < 0.01f)
                 return;
 
-            // 최종 방향뿐 아니라 회전 경로도 검사해 얇은 벽을 가로질러 돌지 못하게 한다.
-            int steps = Mathf.CeilToInt(angle / 5f);
             Vector3 scale = transform.lossyScale;
             Vector3 halfExtents = Vector3.Scale(_bodyCollider.size, scale) * 0.5f;
             Vector3 centerOffset = Vector3.Scale(_bodyCollider.center, scale);
             float reach = new Vector2(centerOffset.x, centerOffset.z).magnitude +
                           new Vector2(halfExtents.x, halfExtents.z).magnitude;
+
+            if (_aimMode == AimMode.Smooth)
+            {
+                // 남은 각도의 일정 비율만큼 다가간다. 프레임이 쌓일수록 목표에 수렴해 부드럽다.
+                float alpha = 1f - Mathf.Exp(-_aimSmoothing * Time.fixedDeltaTime);
+                float movedAngle = angle * alpha;
+                float smoothPadding = reach * movedAngle * Mathf.Deg2Rad;
+                Quaternion candidate = Quaternion.Slerp(start, target, alpha);
+                if (!OverlapsObstacle(candidate, halfExtents, centerOffset, smoothPadding))
+                    transform.rotation = candidate;
+                return;
+            }
+
+            // 최종 방향뿐 아니라 회전 경로도 검사해 얇은 벽을 가로질러 돌지 못하게 한다.
+            int steps = Mathf.CeilToInt(angle / 5f);
             float padding = reach * (angle / steps) * Mathf.Deg2Rad;
 
             for (int step = 1; step <= steps; step++)
