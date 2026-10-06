@@ -9,8 +9,8 @@ namespace OverCleaning.InGame
     /// 씬에 놓인 물건이라 같은 씬의 DustField와 TrashCan을 직접 참조할 수 있다.
     ///
     /// 누가 들고 있는지는 서버가 정한다. 상호작용은 요청일 뿐이고, 자리 검사도 서버가 해서
-    /// 동시에 눌러도 먼저 도착한 한 명만 든다. 나머지는 서버가 내려준 값을 보고 각자
-    /// 같은 모습을 만든다 — 든 사람의 자식으로 붙이고, 내려놓은 자리에 세운다.
+    /// 동시에 눌러도 먼저 도착한 한 명만 든다. 서버가 TrySetParent로 든 사람에게 붙이면
+    /// 부모 관계와 위치·회전은 NGO(부모 동기화 + NetworkTransform)가 모든 기기에 맞춰 준다.
     /// </summary>
     [RequireComponent(typeof(BoxCollider))]
     public sealed class Vacuum : NetworkBehaviour, IInteractable
@@ -37,16 +37,6 @@ namespace OverCleaning.InGame
         /// <summary>서버가 정한다. 들고 있는 사람.</summary>
         private readonly NetworkVariable<ulong> _holderClientId = new NetworkVariable<ulong>(NoHolder);
 
-        /// <summary>서버가 정한다. 내려놓은 자리. 늦게 들어온 사람도 같은 자리에 세울 수 있다.</summary>
-        private readonly NetworkVariable<Vector3> _restPosition = new NetworkVariable<Vector3>();
-
-        /// <summary>
-        /// 든 사람이 정한다. 청소기가 향한 방향.
-        /// 바라보는 방향은 든 사람만 알기에 그 사람이 계산해서 알려준다.
-        /// </summary>
-        private readonly NetworkVariable<float> _aimYaw =
-            new NetworkVariable<float>(writePerm: NetworkVariableWritePermission.Owner);
-
         /// <summary>서버가 정한다. 먼지통에 든 확정 수량. 모두가 같은 숫자를 본다.</summary>
         private readonly NetworkVariable<int> _storedDust = new NetworkVariable<int>();
 
@@ -61,7 +51,6 @@ namespace OverCleaning.InGame
 
         private readonly Collider[] _overlapBuffer = new Collider[32];
         private readonly RaycastHit[] _castBuffer = new RaycastHit[32];
-        private Transform _groundParent;
         private Rigidbody _holderBody;
         private bool _suctionPaused;
         private float _suctionElapsedTime;
@@ -96,7 +85,6 @@ namespace OverCleaning.InGame
         {
             _bodyCollider = GetComponent<BoxCollider>();
             _nozzleProperties = new MaterialPropertyBlock();
-            _groundParent = transform.parent;
 
             if (_suctionPoint == null || _nozzleRenderer == null)
             {
@@ -110,38 +98,41 @@ namespace OverCleaning.InGame
 
         public override void OnNetworkSpawn()
         {
-            _holderClientId.OnValueChanged += OnHolderChanged;
-            _restPosition.OnValueChanged += OnRestPositionChanged;
             _storedDust.OnValueChanged += OnStoredDustChanged;
             if (IsServer)
-            {
-                _restPosition.Value = transform.position;
                 NetworkManager.OnClientDisconnectCallback += OnClientDisconnected;
-            }
 
-            // 늦게 들어온 사람도 지금 들려 있는 모습을 그대로 보도록 현재 값으로 한 번 맞춘다.
-            ApplyHolder();
+            // 늦게 들어오면 이미 든 사람에게 붙은 채로 스폰된다. 현재 부모 기준으로 맞춘다.
+            OnNetworkObjectParentChanged(
+                transform.parent != null ? transform.parent.GetComponent<NetworkObject>() : null);
         }
 
         public override void OnNetworkDespawn()
         {
-            _holderClientId.OnValueChanged -= OnHolderChanged;
-            _restPosition.OnValueChanged -= OnRestPositionChanged;
             _storedDust.OnValueChanged -= OnStoredDustChanged;
             if (IsServer && NetworkManager != null)
                 NetworkManager.OnClientDisconnectCallback -= OnClientDisconnected;
         }
 
+        /// <summary>
+        /// 서버가 부모를 바꾸면 NGO가 모든 기기에서 이것을 불러 준다.
+        /// 여기서 상태를 읽으므로 들림/놓임을 따로 전파할 필요가 없다.
+        /// </summary>
+        public override void OnNetworkObjectParentChanged(NetworkObject parentNetworkObject)
+        {
+            _holderBody = parentNetworkObject != null ? parentNetworkObject.GetComponent<Rigidbody>() : null;
+
+            // 재등록하여 놓은 Collider가 사람의 복합 Collider로 남지 않게 한다.
+            _bodyCollider.enabled = false;
+            _bodyCollider.enabled = true;
+            if (_holderBody != null)
+                transform.localPosition = Vector3.zero;
+            Physics.SyncTransforms();
+            UpdateRunning();
+        }
+
         private void LateUpdate()
         {
-            // 늦게 들어오면 든 사람의 플레이어가 청소기보다 늦게 스폰될 수 있다. 찾힐 때까지 다시 맞춘다.
-            if (IsSpawned && _holderClientId.Value != NoHolder && _holderBody == null)
-                ApplyHolder();
-
-            // 든 사람이 아니면 그 사람이 알려준 방향을 그대로 따른다.
-            if (IsHeld && !IsOwner)
-                transform.rotation = Quaternion.Euler(0f, _aimYaw.Value, 0f);
-
             if (IsServer && _serverEmptying)
                 UpdateServerEmptying();
 
@@ -195,7 +186,9 @@ namespace OverCleaning.InGame
 
         private void ServerPickUp(ulong clientId)
         {
-            Rigidbody holderBody = FindHolderBody(clientId);
+            // 서버에서만 부르므로 남의 플레이어도 조회할 수 있다.
+            NetworkObject player = NetworkManager.SpawnManager.GetPlayerNetworkObject(clientId);
+            Rigidbody holderBody = player != null ? player.GetComponent<Rigidbody>() : null;
             if (holderBody == null)
             {
                 Debug.LogWarning($"{clientId}번 플레이어의 Rigidbody를 찾지 못해 청소기를 들 수 없습니다.", this);
@@ -207,9 +200,14 @@ namespace OverCleaning.InGame
                 Debug.LogWarning("청소기를 들 자리가 막혀 있어 들 수 없습니다.", this);
                 return;
             }
+            if (!NetworkObject.TrySetParent(player))
+            {
+                Debug.LogWarning("청소기를 든 사람에게 붙이지 못했습니다. AutoObjectParentSync 설정을 확인하세요.", this);
+                return;
+            }
 
             _holderClientId.Value = clientId;
-            // 방향은 든 사람이 계산해 알려주므로 그 사람에게 쓰기 권한을 넘긴다.
+            // 방향은 든 사람이 조종하므로 그 사람에게 쓰기 권한을 넘긴다. NetworkTransform이 전파한다.
             NetworkObject.ChangeOwnership(clientId);
         }
 
@@ -238,12 +236,18 @@ namespace OverCleaning.InGame
             ServerRelease(destination);
         }
 
+        /// <summary>
+        /// 서버가 청소기를 바닥에 놓는다. 부모를 떼고 권한을 되찾아 최종 자리를 박으면
+        /// NGO가 모든 기기(늦게 들어온 사람 포함)에 같은 위치와 방향을 맞춰 준다.
+        /// </summary>
         private void ServerRelease(Vector3 destination)
         {
             _serverEmptying = false;
-            _restPosition.Value = destination;
             _holderClientId.Value = NoHolder;
+            NetworkObject.TryRemoveParent();
             NetworkObject.RemoveOwnership();
+            transform.position = destination;
+            Physics.SyncTransforms();
         }
 
         /// <summary>들고 있던 사람이 나가면 그 자리에 놓아둔다. 아니면 아무도 들 수 없게 된다.</summary>
@@ -251,46 +255,6 @@ namespace OverCleaning.InGame
         {
             if (_holderClientId.Value == clientId)
                 ServerRelease(transform.position);
-        }
-
-        private void OnHolderChanged(ulong previousClientId, ulong newClientId) => ApplyHolder();
-
-        private void OnRestPositionChanged(Vector3 previousPosition, Vector3 newPosition) => ApplyHolder();
-
-        /// <summary>
-        /// 서버가 내려준 값대로 청소기를 놓는다. 모든 기기에서 똑같이 돈다.
-        /// 든 사람과 내려놓은 자리가 각각 도착하므로, 어느 쪽이 와도 다시 맞춘다.
-        /// </summary>
-        private void ApplyHolder()
-        {
-            _holderBody = FindHolderBody(_holderClientId.Value);
-            if (_holderBody != null)
-            {
-                SetVacuumParent(_holderBody.transform, _holderBody.position);
-                transform.localPosition = Vector3.zero;
-            }
-            else
-            {
-                SetVacuumParent(_groundParent, _restPosition.Value);
-            }
-
-            UpdateRunning();
-        }
-
-        private Rigidbody FindHolderBody(ulong clientId)
-        {
-            if (clientId == NoHolder || NetworkManager == null || NetworkManager.SpawnManager == null)
-                return null;
-
-            // GetPlayerNetworkObject는 서버가 아니면 남의 플레이어를 돌려주지 않는다.
-            // 모든 기기가 같은 방법으로 찾도록 스폰 목록에서 그 사람의 플레이어를 고른다.
-            foreach (NetworkObject spawned in NetworkManager.SpawnManager.SpawnedObjectsList)
-            {
-                if (spawned.IsPlayerObject && spawned.OwnerClientId == clientId)
-                    return spawned.GetComponent<Rigidbody>();
-            }
-
-            return null;
         }
 
         /// <summary>든 사람이 보는 쪽으로 돌린다. 든 사람의 기기에서만 불린다.</summary>
@@ -321,8 +285,6 @@ namespace OverCleaning.InGame
                     break;
                 transform.rotation = candidate;
             }
-
-            _aimYaw.Value = transform.eulerAngles.y;
         }
 
         /// <summary>먼지를 버리는 동안 흡입을 멈춰 둔다.</summary>
@@ -500,16 +462,6 @@ namespace OverCleaning.InGame
             IsRunning = running;
             _suctionElapsedTime = 0f;
             UpdateNozzleColor();
-        }
-
-        private void SetVacuumParent(Transform parent, Vector3 position)
-        {
-            // 재등록하여 놓은 Collider가 사람의 복합 Collider로 남지 않게 한다.
-            _bodyCollider.enabled = false;
-            transform.SetParent(parent, true);
-            transform.position = position;
-            _bodyCollider.enabled = true;
-            Physics.SyncTransforms();
         }
 
         private bool CanPlaceVacuum(Vector3 destination, Rigidbody ignoredBody, bool ignoreBodyAtDestination)
