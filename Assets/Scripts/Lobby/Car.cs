@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using OverCleaning.Interaction;
 using Unity.Netcode;
+using Unity.Netcode.Components;
 using UnityEngine;
 
 namespace OverCleaning.Lobby
@@ -18,6 +19,9 @@ namespace OverCleaning.Lobby
     [RequireComponent(typeof(Rigidbody))]
     public sealed class Car : NetworkBehaviour, IInteractable
     {
+        /// <summary>내린 사람이 차 몸체에서 이만큼 떨어져야 다시 부딪히게 한다. 캐릭터 반지름보다 조금 크다.</summary>
+        private const float LeavingClearance = 0.5f;
+
         [Tooltip("타는 순서대로: 운전석, 조수석, 운전석 뒤, 조수석 뒤. 차 바로 아래 자식이어야 한다.")]
         [SerializeField] private Transform[] _seats;
 
@@ -35,7 +39,9 @@ namespace OverCleaning.Lobby
         private readonly NetworkList<ulong> _occupants = new NetworkList<ulong>();
         private readonly List<NetworkObject> _seatedPlayers = new List<NetworkObject>();
         private Dictionary<NetworkObject, Vector3> _localPositions = new Dictionary<NetworkObject, Vector3>();
+        private readonly List<NetworkObject> _leavingPlayers = new List<NetworkObject>();
         private Rigidbody _rigidbody;
+        private Collider _bodyCollider;
 
         public bool CanInteract => IsSpawned && (IsLocalSeated || _occupants.Count < _seats.Length);
 
@@ -49,6 +55,7 @@ namespace OverCleaning.Lobby
             _rigidbody.constraints = RigidbodyConstraints.FreezePositionY |
                                      RigidbodyConstraints.FreezeRotationX | RigidbodyConstraints.FreezeRotationZ;
             _rigidbody.interpolation = RigidbodyInterpolation.Interpolate;
+            _bodyCollider = GetComponentInChildren<Collider>();
         }
 
         public override void OnNetworkSpawn()
@@ -137,6 +144,12 @@ namespace OverCleaning.Lobby
                 if (player == null || _seatedPlayers.Contains(player))
                     continue;
                 SetSeated(player, false);
+                // 높이는 동기화하지 않으므로 화면마다 좌석 높이에서 땅으로 내려 준다.
+                Vector3 grounded = player.transform.position;
+                grounded.y = 0f;
+                player.transform.position = grounded;
+                // 남의 화면에서는 내릴 자리로 옮겨졌다는 소식이 늦게 오므로, 차를 벗어나기 전에 부딪히면 차가 밀린다.
+                _leavingPlayers.Add(player);
                 if (player.IsOwner)
                     PlaceBeside(player, seatIndex);
             }
@@ -147,6 +160,7 @@ namespace OverCleaning.Lobby
             {
                 if (player == null)
                     continue;
+                _leavingPlayers.Remove(player);
                 SetSeated(player, true);
                 localPositions[player] = _localPositions.TryGetValue(player, out Vector3 current)
                     ? current
@@ -158,12 +172,13 @@ namespace OverCleaning.Lobby
 
         /// <summary>
         /// 앉은 동안은 걷지 못하고 부딪히지도 않는다. 콜라이더가 남아 있으면 차가 탄 사람에게 막힌다.
+        /// 콜라이더는 내린 뒤 차를 벗어났을 때 다시 켠다.
         /// 몸은 자기 것만 직접 움직이므로 물리 설정은 자기 캐릭터만 바꾼다.
         /// </summary>
         private static void SetSeated(NetworkObject player, bool isSeated)
         {
-            if (player.TryGetComponent(out Collider body))
-                body.enabled = !isSeated;
+            if (isSeated && player.TryGetComponent(out Collider body))
+                body.enabled = false;
             if (!player.IsOwner)
                 return;
 
@@ -188,6 +203,9 @@ namespace OverCleaning.Lobby
             player.transform.position = position;
             if (player.TryGetComponent(out Rigidbody playerBody))
                 playerBody.position = position;
+            // 남의 화면에서 좌석부터 차를 가로질러 미끄러지지 않고 바로 옮겨지게 한다.
+            if (player.TryGetComponent(out NetworkTransform networkTransform))
+                networkTransform.Teleport(position, player.transform.rotation, player.transform.localScale);
         }
 
         private NetworkObject FindPlayer(ulong clientId)
@@ -247,6 +265,22 @@ namespace OverCleaning.Lobby
                 _localPositions[player] = local;
                 player.transform.position = transform.TransformPoint(local);
             }
+
+            for (int index = _leavingPlayers.Count - 1; index >= 0; index--)
+            {
+                NetworkObject player = _leavingPlayers[index];
+                if (player != null && !IsClearOfBody(player))
+                    continue;
+                if (player != null && player.TryGetComponent(out Collider body))
+                    body.enabled = true;
+                _leavingPlayers.RemoveAt(index);
+            }
+        }
+
+        private bool IsClearOfBody(NetworkObject player)
+        {
+            Vector3 point = player.transform.position + Vector3.up * 0.5f;
+            return (_bodyCollider.ClosestPoint(point) - point).sqrMagnitude > LeavingClearance * LeavingClearance;
         }
     }
 }
