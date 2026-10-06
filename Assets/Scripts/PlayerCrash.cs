@@ -18,7 +18,7 @@ namespace OverCleaning.InGame
         [Tooltip("부딪칠 때 주변에 흩어질 털먼지 수. 흩어진 먼지는 다시 빨아들여야 한다.")]
         [Min(0)] [SerializeField] private int _furDustCount = 10;
         [Min(0.1f)] [SerializeField] private float _furDustRadius = 1.5f;
-        [Tooltip("흩어질 털먼지 모양. DustField의 먼지 모양 목록에 있어야 하며, 비우면 아무 모양이나 쓴다.")]
+        [Tooltip("흩어질 털먼지 모양. 아무 이미지나 지정할 수 있고, 비우면 바닥 먼지 모양 중 아무거나 쓴다.")]
         [SerializeField] private Texture2D _furDustTexture;
 
         /// <summary>서버가 정한다. 이 시각(서버 시간)까지 기절이다.</summary>

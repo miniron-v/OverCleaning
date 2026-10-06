@@ -229,16 +229,38 @@ namespace OverCleaning.InGame
             _particleSystems = new ParticleSystem[textures.Count];
             _runtimeMaterials = new Material[textures.Count];
             for (int index = 0; index < textures.Count; index++)
-            {
-                var child = new GameObject($"Dust {textures[index].name}");
-                child.transform.SetParent(transform, false);
-                _particleSystems[index] = child.AddComponent<ParticleSystem>();
-                ConfigureParticleSystem(_particleSystems[index]);
-                _runtimeMaterials[index] = CreateDustMaterial(textures[index]);
-                var particleRenderer = child.GetComponent<ParticleSystemRenderer>();
-                particleRenderer.renderMode = ParticleSystemRenderMode.HorizontalBillboard;
-                particleRenderer.sharedMaterial = _runtimeMaterials[index];
-            }
+                CreateDustSystem(textures[index], index);
+        }
+
+        private void CreateDustSystem(Texture2D texture, int index)
+        {
+            var child = new GameObject($"Dust {texture.name}");
+            child.transform.SetParent(transform, false);
+            _particleSystems[index] = child.AddComponent<ParticleSystem>();
+            ConfigureParticleSystem(_particleSystems[index]);
+            _runtimeMaterials[index] = CreateDustMaterial(texture);
+            var particleRenderer = child.GetComponent<ParticleSystemRenderer>();
+            particleRenderer.renderMode = ParticleSystemRenderMode.HorizontalBillboard;
+            particleRenderer.sharedMaterial = _runtimeMaterials[index];
+        }
+
+        /// <summary>
+        /// 이 모양을 그릴 파티클을 찾고, 없으면 새로 만든다. 플레이어마다 원하는 모양을
+        /// 들고 와도 받아 줄 수 있다. 쏟기는 모든 기기에서 같은 순서로 돌므로
+        /// 새 모양이 받는 자리 번호도 기기마다 같다.
+        /// </summary>
+        private int EnsureDustSystem(Texture2D texture)
+        {
+            int index = _activeTextures.IndexOf(texture);
+            if (index >= 0)
+                return index;
+
+            index = _particleSystems.Length;
+            System.Array.Resize(ref _particleSystems, index + 1);
+            System.Array.Resize(ref _runtimeMaterials, index + 1);
+            _activeTextures.Add(texture);
+            CreateDustSystem(texture, index);
+            return index;
         }
 
         private void ConfigureParticleSystem(ParticleSystem particleSystem)
@@ -626,9 +648,9 @@ namespace OverCleaning.InGame
             if (!HasDustArrays || radius <= 0f || count <= 0)
                 return 0;
 
-            // 모양이 지정되면 그 모양으로만 쏟는다. 목록에 없는 모양이면 아무 모양이나 쓴다.
+            // 모양이 지정되면 그 모양으로만 쏟는다. 처음 보는 모양이면 전용 파티클을 만들어 받는다.
             int fixedTextureIndex = texture != null && _activeTextures != null
-                ? _activeTextures.IndexOf(texture)
+                ? EnsureDustSystem(texture)
                 : -1;
 
             // 먼지 생성과 같은 방식이다. 같은 시드를 먹이면 어느 기기에서 돌려도 같은 자리에
