@@ -174,6 +174,9 @@ namespace OverCleaning.Lobby
             if (!player.IsOwner)
                 return;
 
+            Camera mainCamera = Camera.main;
+            if (mainCamera != null && mainCamera.TryGetComponent(out CameraFollow follow))
+                follow.IsRiding = isSeated;
             if (player.TryGetComponent(out PlayerMovement movement))
                 movement.enabled = !isSeated;
             if (player.TryGetComponent(out Rigidbody playerBody))

@@ -5,7 +5,7 @@ namespace OverCleaning.InGame
     /// <summary>
     /// 자기 캐릭터를 일정한 거리에서 따라간다. 차에 타도 캐릭터가 좌석에 실제로 앉아 있으므로 그대로 따라간다.
     /// 대상은 자기 캐릭터가 스폰될 때 정해진다.
-    /// 넓은 곳에서는 시야각을 키워 더 멀리 보여준다.
+    /// 넓은 곳에서는 시야각을 키워 더 멀리 보여주고, 차에 타면 더 키운다.
     /// </summary>
     [RequireComponent(typeof(Camera))]
     public sealed class CameraFollow : MonoBehaviour
@@ -14,7 +14,10 @@ namespace OverCleaning.InGame
         [Min(0.1f)] [SerializeField] private float _smoothTime = 0.15f;
 
         [Tooltip("넓게 볼 때의 시야각. 평소 시야각은 카메라에 설정된 값이다.")]
-        [Range(1f, 179f)] [SerializeField] private float _wideFieldOfView = 60f;
+        [Range(1f, 179f)] [SerializeField] private float _wideFieldOfView = 45f;
+
+        [Tooltip("차에 탔을 때의 시야각. 넓게 볼 때보다 우선한다.")]
+        [Range(1f, 179f)] [SerializeField] private float _ridingFieldOfView = 60f;
 
         [Tooltip("시야각이 바뀌는 속도(초당 도).")]
         [Min(1f)] [SerializeField] private float _zoomSpeed = 60f;
@@ -28,6 +31,9 @@ namespace OverCleaning.InGame
         /// <summary>넓게 볼지. 바꾸면 시야각이 부드럽게 따라간다.</summary>
         public bool IsWide { get; set; }
 
+        /// <summary>차에 탔는지. 바꾸면 시야각이 부드럽게 따라간다.</summary>
+        public bool IsRiding { get; set; }
+
         private void Awake()
         {
             _camera = GetComponent<Camera>();
@@ -36,7 +42,7 @@ namespace OverCleaning.InGame
 
         private void LateUpdate()
         {
-            float fieldOfView = IsWide ? _wideFieldOfView : _normalFieldOfView;
+            float fieldOfView = IsRiding ? _ridingFieldOfView : IsWide ? _wideFieldOfView : _normalFieldOfView;
             _camera.fieldOfView = Mathf.MoveTowards(_camera.fieldOfView, fieldOfView, _zoomSpeed * Time.deltaTime);
 
             if (Target == null)
