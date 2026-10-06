@@ -145,8 +145,14 @@ namespace OverCleaning.InGame
         /// </summary>
         public void Interact()
         {
-            if (IsSpawned)
-                RequestToggleHoldRpc();
+            if (!IsSpawned)
+            {
+                Debug.LogWarning("청소기가 네트워크에 올라와 있지 않아 들 수 없습니다. " +
+                    "이 오브젝트에 NetworkObject를 붙였는지, 씬을 NGO 씬 매니저로 불러왔는지 확인하세요.", this);
+                return;
+            }
+
+            RequestToggleHoldRpc();
         }
 
         /// <summary>
@@ -160,16 +166,24 @@ namespace OverCleaning.InGame
                 ServerDrop();
             else if (_holderClientId.Value == NoHolder)
                 ServerPickUp(senderClientId);
+            else
+                Debug.Log($"청소기는 이미 {_holderClientId.Value}번 플레이어가 들고 있습니다.", this);
         }
 
         private void ServerPickUp(ulong clientId)
         {
             Rigidbody holderBody = FindHolderBody(clientId);
             if (holderBody == null)
+            {
+                Debug.LogWarning($"{clientId}번 플레이어의 Rigidbody를 찾지 못해 청소기를 들 수 없습니다.", this);
                 return;
+            }
             // 들어 올리는 동안 든 사람과 겹치는 것은 당연하므로 장애물로 보지 않는다.
             if (!CanPlaceVacuum(holderBody.position, holderBody, true))
+            {
+                Debug.LogWarning("청소기를 들 자리가 막혀 있어 들 수 없습니다.", this);
                 return;
+            }
 
             _holderClientId.Value = clientId;
             // 방향은 든 사람이 계산해 알려주므로 그 사람에게 쓰기 권한을 넘긴다.
