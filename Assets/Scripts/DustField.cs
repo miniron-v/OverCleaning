@@ -108,21 +108,29 @@ namespace OverCleaning.InGame
 
             ValidateSettings();
             Physics.SyncTransforms();
-            CacheFloors();
-            if (_activeFloors.Count == 0 || _dustMaterial == null)
-            {
-                Debug.LogError("DustField에 활성 바닥 Collider 목록과 먼지 Material을 지정하세요.", this);
-                return;
-            }
 
-            ConfigureParticleSystems();
-
-            // 먼지 생성에만 시드를 먹인다. 다른 곳의 난수가 영향을 받지 않도록 원래 상태로 되돌린다.
+            // 군집 중심을 뽑는 것부터 시드를 먹인다. 먼지 대부분이 군집에 모이므로
+            // 군집 자리가 다르면 같은 난수열로 뽑아도 화면마다 배치가 달라진다.
+            // 다른 곳의 난수가 영향을 받지 않도록 끝나면 원래 상태로 되돌린다.
             Random.State previousState = Random.state;
             Random.InitState(seed);
-            GenerateDust();
-            Random.state = previousState;
-            _isBuilt = true;
+            try
+            {
+                CacheFloors();
+                if (_activeFloors.Count == 0 || _dustMaterial == null)
+                {
+                    Debug.LogError("DustField에 활성 바닥 Collider 목록과 먼지 Material을 지정하세요.", this);
+                    return;
+                }
+
+                ConfigureParticleSystems();
+                GenerateDust();
+                _isBuilt = true;
+            }
+            finally
+            {
+                Random.state = previousState;
+            }
         }
 
         private void CacheFloors()
