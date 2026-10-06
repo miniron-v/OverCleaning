@@ -12,6 +12,9 @@ namespace OverCleaning.EditorTools
     /// </summary>
     public static class RoomScreenBuilder
     {
+        private const float PanelMargin = 40f;
+        private const float PanelScale = 0.7f;
+
         [MenuItem("OverCleaning/Build Room Screen UI")]
         public static void Build()
         {
@@ -26,6 +29,7 @@ namespace OverCleaning.EditorTools
             Canvas canvas = UIBuilder.CreateCanvas();
             RectTransform panel = UIBuilder.CreatePanel(canvas.transform, "RoomPanel", 760f,
                 UIBuilder.PanelBackground);
+            PlaceTopLeft(panel);
 
             // 코드와 복사 버튼을 한 줄에 나란히 둔다.
             RectTransform codeRow = UIBuilder.CreateRow(panel, "RoomCodeRow", 72f);
@@ -53,6 +57,16 @@ namespace OverCleaning.EditorTools
             EditorSceneManager.MarkSceneDirty(roomScreen.gameObject.scene);
             Selection.activeGameObject = canvas.gameObject;
             Debug.Log("룸 UI를 생성했습니다. 씬을 저장하세요.");
+        }
+
+        /// <summary>대기방에서는 마을을 가리지 않도록 왼쪽 위에 작게 둔다.</summary>
+        private static void PlaceTopLeft(RectTransform panel)
+        {
+            panel.anchorMin = new Vector2(0f, 1f);
+            panel.anchorMax = new Vector2(0f, 1f);
+            panel.pivot = new Vector2(0f, 1f);
+            panel.anchoredPosition = new Vector2(PanelMargin, -PanelMargin);
+            panel.localScale = Vector3.one * PanelScale;
         }
 
         private static void AssignReferences(RoomScreen roomScreen, TMP_Text roomCode, Button copyButton,
