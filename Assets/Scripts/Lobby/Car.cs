@@ -34,12 +34,8 @@ namespace OverCleaning.Lobby
         [Tooltip("내릴 때 차 중심에서 옆으로 떨어질 거리.")]
         [Min(0f)] [SerializeField] private float _exitDistance = 2f;
 
-        [Tooltip("탈 때 서 있던 자리에서 좌석까지 움직이는 속도.")]
-        [Min(0.1f)] [SerializeField] private float _seatMoveSpeed = 4f;
-
         private readonly NetworkList<ulong> _occupants = new NetworkList<ulong>();
         private readonly List<NetworkObject> _seatedPlayers = new List<NetworkObject>();
-        private Dictionary<NetworkObject, Vector3> _localPositions = new Dictionary<NetworkObject, Vector3>();
         private readonly List<NetworkObject> _leavingPlayers = new List<NetworkObject>();
         private Rigidbody _rigidbody;
         private Collider _bodyCollider;
@@ -155,21 +151,13 @@ namespace OverCleaning.Lobby
                     PlaceBeside(player, seatIndex);
             }
 
-            // 새로 탄 사람은 서 있던 자리에서 좌석으로 들어가고, 자리를 옮기는 사람은 새 좌석으로 바로 옮긴다.
-            Dictionary<NetworkObject, Vector3> localPositions = new Dictionary<NetworkObject, Vector3>();
-            for (int seatIndex = 0; seatIndex < _seatedPlayers.Count && seatIndex < _seats.Length; seatIndex++)
+            foreach (NetworkObject player in _seatedPlayers)
             {
-                NetworkObject player = _seatedPlayers[seatIndex];
                 if (player == null)
                     continue;
                 _leavingPlayers.Remove(player);
                 SetSeated(player, true);
-                localPositions[player] = _localPositions.ContainsKey(player)
-                    ? _seats[seatIndex].localPosition
-                    : transform.InverseTransformPoint(player.transform.position);
             }
-
-            _localPositions = localPositions;
         }
 
         /// <summary>
@@ -254,7 +242,7 @@ namespace OverCleaning.Lobby
         }
 
         /// <summary>
-        /// 차가 그려질 위치가 정해진 뒤에 탄 사람을 좌석에 맞춘다. 위치는 차 기준으로 들고 있어 차와 함께 움직인다.
+        /// 차가 그려질 위치가 정해진 뒤에 탄 사람을 좌석에 맞춘다. 탈 때도 자리를 옮길 때도 바로 옮긴다.
         /// 남의 캐릭터는 네트워크로 받은 위치를 덮어써서 차와 어긋나지 않게 한다.
         /// </summary>
         private void LateUpdate()
@@ -262,12 +250,8 @@ namespace OverCleaning.Lobby
             for (int seatIndex = 0; seatIndex < _seatedPlayers.Count && seatIndex < _seats.Length; seatIndex++)
             {
                 NetworkObject player = _seatedPlayers[seatIndex];
-                if (player == null)
-                    continue;
-                Vector3 local = Vector3.MoveTowards(_localPositions[player], _seats[seatIndex].localPosition,
-                    _seatMoveSpeed * Time.deltaTime);
-                _localPositions[player] = local;
-                player.transform.position = transform.TransformPoint(local);
+                if (player != null)
+                    player.transform.position = _seats[seatIndex].position;
             }
 
             for (int index = _leavingPlayers.Count - 1; index >= 0; index--)
