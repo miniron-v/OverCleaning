@@ -180,8 +180,14 @@ namespace OverCleaning.InGame
         [Rpc(SendTo.Server)]
         private void RequestDropRpc(RpcParams rpcParams = default)
         {
-            if (_holderClientId.Value == rpcParams.Receive.SenderClientId)
+            if (IsFromHolder(rpcParams))
                 ServerDrop();
+        }
+
+        /// <summary>이 요청을 보낸 사람이 지금 들고 있는 사람인가. 아닌 요청은 버린다.</summary>
+        private bool IsFromHolder(RpcParams rpcParams)
+        {
+            return _holderClientId.Value == rpcParams.Receive.SenderClientId;
         }
 
         private void ServerPickUp(ulong clientId)
@@ -322,8 +328,7 @@ namespace OverCleaning.InGame
         [Rpc(SendTo.Server)]
         private void BeginEmptyingRpc(RpcParams rpcParams = default)
         {
-            // 들고 있지 않은 사람이 보낸 요청은 버린다.
-            if (_holderClientId.Value != rpcParams.Receive.SenderClientId || !CanEmptyDustBin())
+            if (!IsFromHolder(rpcParams) || !CanEmptyDustBin())
                 return;
             _serverEmptying = true;
             _emptyAccumulator = 0f;
@@ -332,7 +337,7 @@ namespace OverCleaning.InGame
         [Rpc(SendTo.Server)]
         private void EndEmptyingRpc(RpcParams rpcParams = default)
         {
-            if (_holderClientId.Value == rpcParams.Receive.SenderClientId)
+            if (IsFromHolder(rpcParams))
                 _serverEmptying = false;
         }
 
@@ -368,7 +373,7 @@ namespace OverCleaning.InGame
         [Rpc(SendTo.Server)]
         private void ReportDustRemovedRpc(int dustId, RpcParams rpcParams = default)
         {
-            if (_holderClientId.Value != rpcParams.Receive.SenderClientId)
+            if (!IsFromHolder(rpcParams))
                 return;
 
             if (_storedDust.Value < _dustCapacity)
