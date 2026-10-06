@@ -1,16 +1,19 @@
+using OverCleaning.InGame;
 using Unity.Netcode;
 using UnityEngine;
 
 namespace OverCleaning.Lobby
 {
     /// <summary>
-    /// 자기 캐릭터가 사무실 밖에 있으면 사무실을 그리지 않는다. 보는 사람마다 따로 정한다.
-    /// 콜라이더는 그대로 두어 밖에서도 벽에 부딪힌다.
+    /// 자기 캐릭터가 사무실 밖에 있으면 사무실을 그리지 않고, 마을을 넓게 보도록 카메라를 넓힌다.
+    /// 보는 사람마다 따로 정한다. 콜라이더는 그대로 두어 밖에서도 벽에 부딪힌다.
     /// </summary>
     public sealed class OfficeCulling : MonoBehaviour
     {
         [Tooltip("사무실 안으로 볼 영역. 이 오브젝트 기준 로컬 좌표다.")]
         [SerializeField] private Bounds _interior = new Bounds(Vector3.zero, new Vector3(15f, 10f, 11f));
+
+        [SerializeField] private CameraFollow _cameraFollow;
 
         private Renderer[] _renderers;
         private bool _isVisible = true;
@@ -37,6 +40,7 @@ namespace OverCleaning.Lobby
             if (_isVisible == isVisible)
                 return;
             _isVisible = isVisible;
+            _cameraFollow.IsWide = !isVisible;
             foreach (Renderer officeRenderer in _renderers)
                 officeRenderer.enabled = isVisible;
         }
