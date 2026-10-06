@@ -177,7 +177,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 7db05aa2559a47dbae1b4c1fca950a32, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::OverCleaning.InGame.PlayerVacuum
+  m_EditorClassIdentifier: Assembly-CSharp::OverCleaning.InGame.VacuumCarrier
   _vacuumPivot: {fileID: 0}
   _suctionPoint: {fileID: 0}
   _nozzleRenderer: {fileID: 0}

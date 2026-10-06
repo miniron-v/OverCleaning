@@ -5,7 +5,7 @@ namespace OverCleaning.InGame
 {
     [RequireComponent(typeof(PlayerMovement))]
     [DefaultExecutionOrder(100)]
-    public sealed class PlayerVacuum : MonoBehaviour
+    public sealed class VacuumCarrier : MonoBehaviour
     {
         [SerializeField] private Transform _vacuumPivot;
         [SerializeField] private Transform _suctionPoint;
@@ -65,7 +65,7 @@ namespace OverCleaning.InGame
 
             if (_vacuumPivot == null || _suctionPoint == null || _nozzleRenderer == null || _vacuumCollider == null)
             {
-                Debug.LogError("PlayerVacuum의 회전축, 흡입구, 노즐 Renderer, Collider를 지정하세요.", this);
+                Debug.LogError("VacuumCarrier의 회전축, 흡입구, 노즐 Renderer, Collider를 지정하세요.", this);
                 enabled = false;
                 return;
             }
