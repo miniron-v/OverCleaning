@@ -16,7 +16,7 @@ namespace OverCleaning.InGame
     /// </summary>
     [RequireComponent(typeof(PlayerMovement))]
     [DefaultExecutionOrder(100)]
-    public sealed class VacuumCarrier : MonoBehaviour
+    public sealed class ItemCarrier : MonoBehaviour
     {
         private const string InteractActionName = "Interact";
 
