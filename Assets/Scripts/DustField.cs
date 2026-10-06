@@ -428,7 +428,8 @@ namespace OverCleaning.InGame
         /// <summary>흡입 가능한 먼지를 예약하고 실제 선택 수량을 반환합니다.</summary>
         public int BeginSuction(Vacuum source, int maximumCount, float duration)
         {
-            if (_particles == null || source == null || !source.IsRunning || maximumCount <= 0 || duration <= 0f)
+            if (_particles == null || _suctionStates == null || source == null || !source.IsRunning ||
+                maximumCount <= 0 || duration <= 0f)
                 return 0;
 
             int selectedCount = 0;
@@ -458,6 +459,11 @@ namespace OverCleaning.InGame
 
         private void Update()
         {
+            // 플레이 중 스크립트가 다시 컴파일되면 직렬화되지 않는 배열은 사라지는데
+            // RemainingDustCount는 살아남는다. 그 상태로 돌면 터지므로 조용히 넘어간다.
+            if (_particles == null || _suctionStates == null)
+                return;
+
             bool changed = false;
             for (int index = RemainingDustCount - 1; index >= 0; index--)
             {
@@ -509,7 +515,7 @@ namespace OverCleaning.InGame
         /// </summary>
         public void RemoveDustById(int dustId)
         {
-            if (_particles == null)
+            if (_particles == null || _suctionStates == null)
                 return;
             for (int index = 0; index < RemainingDustCount; index++)
             {
@@ -523,6 +529,9 @@ namespace OverCleaning.InGame
 
         public void CancelSuctionFor(Vacuum source)
         {
+            if (_particles == null || _suctionStates == null)
+                return;
+
             bool changed = false;
             for (int index = 0; index < RemainingDustCount; index++)
             {
@@ -538,6 +547,9 @@ namespace OverCleaning.InGame
 
         private void OnDisable()
         {
+            if (_particles == null || _suctionStates == null)
+                return;
+
             bool changed = false;
             for (int index = 0; index < RemainingDustCount; index++)
             {
