@@ -15,6 +15,11 @@ namespace OverCleaning.InGame
     {
         [Tooltip("부딪친 뒤 움직이지 못하는 시간(초).")]
         [Min(0.1f)] [SerializeField] private float _stunDuration = 1.2f;
+        [Tooltip("부딪친 반대쪽으로 튕겨나는 속도.")]
+        [Min(0f)] [SerializeField] private float _knockbackSpeed = 5f;
+
+        /// <summary>튕겨난 속도가 1초에 줄어드는 비율. 기절이 끝날 즈음이면 거의 멈춘다.</summary>
+        private const float KnockbackDamping = 4f;
         [Tooltip("부딪칠 때 주변에 흩어질 털먼지 수. 흩어진 먼지는 다시 빨아들여야 한다.")]
         [Min(0)] [SerializeField] private int _furDustCount = 10;
         [Min(0.1f)] [SerializeField] private float _furDustRadius = 1.5f;
@@ -30,7 +35,13 @@ namespace OverCleaning.InGame
         private Camera _statusCamera;
         private bool _movementFrozen;
 
+        /// <summary>서버 확정이 도착하기 전까지의 로컬 예측. 없으면 확정이 오기까지
+        /// 몇 프레임 동안 이동 코드가 튕겨난 속도를 덮어써 버린다.</summary>
+        private float _predictedStunEndTime;
+
         public bool IsStunned => IsSpawned && NetworkManager.ServerTime.Time < _stunnedUntil.Value;
+
+        private bool IsMovementFrozen => IsStunned || Time.time < _predictedStunEndTime;
 
         private void Awake()
         {
@@ -43,26 +54,42 @@ namespace OverCleaning.InGame
             if (!IsOwner || _playerMovement == null)
                 return;
 
-            // 기절 동안 조작을 멈춘다. 끝나면 돌려준다.
-            bool frozen = IsStunned;
+            // 기절 동안 조작을 멈춘다. 끝나면 돌려준다. 튕겨난 속도는 지우지 않는다.
+            bool frozen = IsMovementFrozen;
             if (frozen == _movementFrozen)
                 return;
             _movementFrozen = frozen;
             _playerMovement.enabled = !frozen;
             if (frozen)
-            {
                 _playerMovement.ResetInputState();
-                _body.linearVelocity = new Vector3(0f, _body.linearVelocity.y, 0f);
-            }
+        }
+
+        private void FixedUpdate()
+        {
+            if (!IsOwner || !_movementFrozen)
+                return;
+
+            // 튕겨난 속도를 서서히 줄인다. 기절이 끝날 즈음이면 거의 멈춘다.
+            float decay = Mathf.Exp(-KnockbackDamping * Time.fixedDeltaTime);
+            Vector3 velocity = _body.linearVelocity;
+            _body.linearVelocity = new Vector3(velocity.x * decay, velocity.y, velocity.z * decay);
         }
 
         private void OnCollisionEnter(Collision collision)
         {
             // 부딪침은 자기 캐릭터의 기기에서만 센다. 남의 캐릭터는 위치만 따라올 뿐이다.
-            if (!IsSpawned || !IsOwner || IsStunned || collision.rigidbody == null)
+            if (!IsSpawned || !IsOwner || IsMovementFrozen || collision.rigidbody == null)
                 return;
             if (collision.rigidbody.GetComponent<PlayerCrash>() == null)
                 return;
+
+            // 부딪친 반대쪽으로 튕겨난다. 서버 확정을 기다리지 않고 바로 몸이 반응해야
+            // 부딪친 느낌이 난다.
+            Vector3 direction = _body.position - collision.rigidbody.position;
+            direction.y = 0f;
+            if (direction.sqrMagnitude > 0.000001f)
+                _body.linearVelocity = direction.normalized * _knockbackSpeed;
+            _predictedStunEndTime = Time.time + _stunDuration;
 
             ReportCrashRpc();
         }
