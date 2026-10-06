@@ -34,7 +34,7 @@ namespace OverCleaning.Lobby
         [Tooltip("내릴 때 차 중심에서 옆으로 떨어질 거리.")]
         [Min(0f)] [SerializeField] private float _exitDistance = 2f;
 
-        [Tooltip("탈 때와 자리를 옮길 때 좌석까지 움직이는 속도.")]
+        [Tooltip("탈 때 서 있던 자리에서 좌석까지 움직이는 속도.")]
         [Min(0.1f)] [SerializeField] private float _seatMoveSpeed = 4f;
 
         private readonly NetworkList<ulong> _occupants = new NetworkList<ulong>();
@@ -155,16 +155,17 @@ namespace OverCleaning.Lobby
                     PlaceBeside(player, seatIndex);
             }
 
-            // 계속 앉아 있는 사람은 지금 자리에서, 새로 탄 사람은 서 있던 자리에서 좌석으로 옮겨 간다.
+            // 새로 탄 사람은 서 있던 자리에서 좌석으로 들어가고, 자리를 옮기는 사람은 새 좌석으로 바로 옮긴다.
             Dictionary<NetworkObject, Vector3> localPositions = new Dictionary<NetworkObject, Vector3>();
-            foreach (NetworkObject player in _seatedPlayers)
+            for (int seatIndex = 0; seatIndex < _seatedPlayers.Count && seatIndex < _seats.Length; seatIndex++)
             {
+                NetworkObject player = _seatedPlayers[seatIndex];
                 if (player == null)
                     continue;
                 _leavingPlayers.Remove(player);
                 SetSeated(player, true);
-                localPositions[player] = _localPositions.TryGetValue(player, out Vector3 current)
-                    ? current
+                localPositions[player] = _localPositions.ContainsKey(player)
+                    ? _seats[seatIndex].localPosition
                     : transform.InverseTransformPoint(player.transform.position);
             }
 
