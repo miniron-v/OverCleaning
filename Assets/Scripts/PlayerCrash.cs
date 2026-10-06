@@ -7,8 +7,8 @@ namespace OverCleaning.InGame
     /// 플레이어끼리 부딪치면 잠깐 기절한다. 들고 있던 물건을 그 자리에 떨어뜨리고,
     /// 몸에 붙어 있던 털먼지가 주변 바닥에 흩어진다.
     ///
-    /// 부딪침은 각자 자기 캐릭터의 기기에서 재고, 기절은 서버가 확정한다.
-    /// 기절한 모습(머리 위 별)은 모든 기기에서 그려야 하므로 이 컴포넌트는
+    /// 부딪침은 각자 자기 캐릭터의 기기에서 재고, 한쪽이 보고하면 서버가 양쪽을 함께
+    /// 기절시킨다. 기절한 모습(머리 위 별)은 모든 기기에서 그려야 하므로 이 컴포넌트는
     /// 자기 캐릭터가 아니어도 꺼지지 않고, 자기 것만 해야 하는 일은 안에서 가린다.
     /// </summary>
     public sealed class PlayerCrash : NetworkBehaviour
@@ -80,25 +80,44 @@ namespace OverCleaning.InGame
             // 부딪침은 자기 캐릭터의 기기에서만 센다. 남의 캐릭터는 위치만 따라올 뿐이다.
             if (!IsSpawned || !IsOwner || IsMovementFrozen || collision.rigidbody == null)
                 return;
-            if (collision.rigidbody.GetComponent<PlayerCrash>() == null)
+            PlayerCrash other = collision.rigidbody.GetComponent<PlayerCrash>();
+            if (other == null)
                 return;
 
             // 부딪친 반대쪽으로 튕겨난다. 서버 확정을 기다리지 않고 바로 몸이 반응해야
             // 부딪친 느낌이 난다.
-            Vector3 direction = _body.position - collision.rigidbody.position;
-            direction.y = 0f;
-            if (direction.sqrMagnitude > 0.000001f)
-                _body.linearVelocity = direction.normalized * _knockbackSpeed;
-            _predictedStunEndTime = Time.time + _stunDuration;
+            ApplyKnockback(_body.position - collision.rigidbody.position);
 
-            ReportCrashRpc();
+            ReportCrashRpc(other);
         }
 
+        /// <summary>
+        /// 둘이 부딪친 것이므로 서버가 양쪽을 함께 기절시킨다. 멈춰 있던 쪽의 기기에서는
+        /// 상대가 튕겨나간 뒤의 위치만 받아 충돌이 아예 잡히지 않을 수 있기 때문에,
+        /// 한쪽의 보고만으로 둘 다 처리한다. 양쪽이 다 보고하면 뒤의 것은 무시된다.
+        /// </summary>
         [Rpc(SendTo.Server)]
-        private void ReportCrashRpc(RpcParams rpcParams = default)
+        private void ReportCrashRpc(NetworkBehaviourReference otherReference, RpcParams rpcParams = default)
         {
-            // 자기 캐릭터의 부딪침만 받아 준다. 이미 기절 중이면 무시한다.
-            if (rpcParams.Receive.SenderClientId != OwnerClientId || IsStunned)
+            // 자기 캐릭터의 부딪침만 받아 준다.
+            if (rpcParams.Receive.SenderClientId != OwnerClientId)
+                return;
+
+            if (otherReference.TryGet(out PlayerCrash other))
+            {
+                ServerApplyCrash(other._body.position);
+                other.ServerApplyCrash(_body.position);
+            }
+            else
+            {
+                ServerApplyCrash(_body.position);
+            }
+        }
+
+        /// <summary>서버에서만 부른다. 기절시키고, 든 것을 떨어뜨리고, 털먼지를 흩는다.</summary>
+        private void ServerApplyCrash(Vector3 awayFromPosition)
+        {
+            if (IsStunned)
                 return;
 
             _stunnedUntil.Value = NetworkManager.ServerTime.Time + _stunDuration;
@@ -109,6 +128,26 @@ namespace OverCleaning.InGame
                 heldItem.ServerForceDrop();
 
             SpillFurDustRpc(_body.position, Random.Range(1, int.MaxValue));
+
+            // 제 기기에서 충돌을 못 잡은 쪽도 튕겨나도록 주인에게 알린다.
+            KnockbackRpc(_body.position - awayFromPosition);
+        }
+
+        [Rpc(SendTo.Owner)]
+        private void KnockbackRpc(Vector3 direction)
+        {
+            // 제 기기에서 이미 예측으로 튕겨났으면 두 번 하지 않는다.
+            if (Time.time < _predictedStunEndTime)
+                return;
+            ApplyKnockback(direction);
+        }
+
+        private void ApplyKnockback(Vector3 direction)
+        {
+            direction.y = 0f;
+            if (direction.sqrMagnitude > 0.000001f)
+                _body.linearVelocity = direction.normalized * _knockbackSpeed;
+            _predictedStunEndTime = Time.time + _stunDuration;
         }
 
         /// <summary>털먼지는 모두의 바닥에 같은 자리로 흩어져야 한다. 시드로 맞춘다.</summary>
