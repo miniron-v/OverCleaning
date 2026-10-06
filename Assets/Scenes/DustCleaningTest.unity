@@ -1032,7 +1032,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::OverCleaning.InGame.GameRound
   ShowTopMostFoldoutHeaderGroup: 1
-  _roundDuration: 30
+  _roundDuration: 180
   _resultDuration: 8
   _dustField: {fileID: 2100000002}
   _gameScreen: {fileID: 1480306530}
