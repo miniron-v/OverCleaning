@@ -1435,6 +1435,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 457c5d1dd6fd478ca3a77591d77ea572, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::OverCleaning.InGame.WallFader
+  _fadeShader: {fileID: 4800000, guid: 0e48641d152d47c5bb1478f4d94c7e5b, type: 3}
 --- !u!1 &2110010000
 GameObject:
   m_ObjectHideFlags: 0

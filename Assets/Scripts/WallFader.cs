@@ -19,6 +19,8 @@ namespace OverCleaning.InGame
         /// <summary>내 캐릭터 위치(xyz)와 반경(w). 모든 벽이 같은 값을 읽는 전역이다.</summary>
         private static readonly int FadeCenterId = Shader.PropertyToID("_WallFadeCenter");
 
+        [Tooltip("벽에 바꿔 끼울 WallSphereFade 셰이더. 직접 참조해야 빌드에서도 빠지지 않는다.")]
+        [SerializeField] private Shader _fadeShader;
         [Tooltip("내 캐릭터를 중심으로 이 반경(구)에 든 벽 부분만 반투명해진다.")]
         [Min(0.1f)] [SerializeField] private float _fadeRadius = 3f;
         [Tooltip("반투명해진 부분의 불투명도. 0이면 완전히 사라진다.")]
@@ -30,10 +32,10 @@ namespace OverCleaning.InGame
 
         private void Awake()
         {
-            Shader shader = Shader.Find("OverCleaning/WallSphereFade");
+            Shader shader = _fadeShader != null ? _fadeShader : Shader.Find("OverCleaning/WallSphereFade");
             if (shader == null)
             {
-                Debug.LogError("WallSphereFade 셰이더를 찾지 못했습니다.", this);
+                Debug.LogError("WallSphereFade 셰이더를 찾지 못했습니다. WallFader의 Fade Shader를 지정하세요.", this);
                 enabled = false;
                 return;
             }
