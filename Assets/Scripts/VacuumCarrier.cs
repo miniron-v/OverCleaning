@@ -48,16 +48,20 @@ namespace OverCleaning.InGame
 
         private void Update()
         {
+            // 누름 시작은 지난 프레임의 들림 상태로 가린다. 줍기도 같은 키라서,
+            // 호스트에서는 줍는 탭과 같은 프레임에 청소기가 이미 붙어 버리는데,
+            // 그 탭을 여기서 또 받으면 떼는 순간 도로 내려놓는다.
+            bool isPressed = IsInteractPressed();
+            if (isPressed && !_interactWasPressed)
+                BeginPress();
+            _interactWasPressed = isPressed;
+
             // 서버가 들린 청소기를 내 자식으로 붙여 준다. 남이 든 청소기는 그 사람 밑에 있으므로
             // 여기서 찾히지 않는다.
             _heldVacuum = GetComponentInChildren<Vacuum>();
 
-            bool isPressed = IsInteractPressed();
-            if (isPressed && !_interactWasPressed)
-                BeginPress();
             if (_isTrackingPress)
                 UpdatePress(isPressed);
-            _interactWasPressed = isPressed;
         }
 
         private void FixedUpdate()
