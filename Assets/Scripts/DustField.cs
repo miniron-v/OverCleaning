@@ -82,6 +82,9 @@ namespace OverCleaning.InGame
 
         private bool _isBuilt;
 
+        /// <summary>먼지가 깔렸는가. 깔리기 전의 0개를 다 치운 것으로 오해하지 않게 한다.</summary>
+        public bool IsBuilt => _isBuilt;
+
         /// <summary>
         /// 플레이 중 재컴파일되면 직렬화되지 않는 배열만 사라지고 수량은 남는다.
         /// 그 어긋난 프레임을 거르는 용도다.
