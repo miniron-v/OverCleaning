@@ -21,7 +21,6 @@ namespace OverCleaning.EditorTools
         /// <summary>화면 위, 아래, 오른쪽의 같은 여백.</summary>
         private const float ScreenMargin = 40f;
         private const float PanelWidth = 760f;
-        private const float ArrowWidth = 64f;
         private const float HeaderButtonWidth = 140f;
         private const float MinimizedWidth = 480f;
 
@@ -132,10 +131,6 @@ namespace OverCleaning.EditorTools
             StagePage page = CreateStagePage(panel);
             Button startButton = UIBuilder.CreateButton(panel, "StartStageButton", "시작하기");
 
-            // 화살표는 레이아웃과 상관없이 패널 세로 가운데의 양 끝에 붙인다.
-            Button previousButton = CreateArrow(panel, "PreviousButton", "<", 0f);
-            Button nextButton = CreateArrow(panel, "NextButton", ">", 1f);
-
             // 모달 밖에 두어야 줄였을 때 뒤의 룸 UI를 가리지 않는다.
             MinimizedBar minimizedBar = CreateMinimizedBar(screenObject.transform);
 
@@ -150,9 +145,6 @@ namespace OverCleaning.EditorTools
             serialized.FindProperty("_thumbnailImage").objectReferenceValue = page.Thumbnail;
             serialized.FindProperty("_thumbnailPlaceholder").objectReferenceValue = page.ThumbnailPlaceholder;
             serialized.FindProperty("_goalText").objectReferenceValue = page.Goal;
-            serialized.FindProperty("_pageText").objectReferenceValue = page.PageNumber;
-            serialized.FindProperty("_previousButton").objectReferenceValue = previousButton;
-            serialized.FindProperty("_nextButton").objectReferenceValue = nextButton;
             serialized.FindProperty("_startButton").objectReferenceValue = startButton;
 
             serialized.FindProperty("_minimizedRoot").objectReferenceValue = minimizedBar.Root;
@@ -297,10 +289,9 @@ namespace OverCleaning.EditorTools
             public readonly GameObject ThumbnailPlaceholder;
             public readonly TMP_Text[] Stars;
             public readonly TMP_Text Goal;
-            public readonly TMP_Text PageNumber;
 
             public StagePage(TMP_Text stageNumber, TMP_Text stageName, Image thumbnail,
-                GameObject thumbnailPlaceholder, TMP_Text[] stars, TMP_Text goal, TMP_Text pageNumber)
+                GameObject thumbnailPlaceholder, TMP_Text[] stars, TMP_Text goal)
             {
                 StageNumber = stageNumber;
                 StageName = stageName;
@@ -308,13 +299,11 @@ namespace OverCleaning.EditorTools
                 ThumbnailPlaceholder = thumbnailPlaceholder;
                 Stars = stars;
                 Goal = goal;
-                PageNumber = pageNumber;
             }
         }
 
         /// <summary>
         /// 스테이지 한 장. 남는 세로 공간은 썸네일이 차지한다.
-        /// 양옆은 화살표 자리만큼 비워 둔다.
         /// </summary>
         private static StagePage CreateStagePage(RectTransform panel)
         {
@@ -323,8 +312,7 @@ namespace OverCleaning.EditorTools
             pageObject.GetComponent<LayoutElement>().flexibleHeight = 1f;
 
             VerticalLayoutGroup layout = pageObject.GetComponent<VerticalLayoutGroup>();
-            int sidePadding = Mathf.RoundToInt(ArrowWidth);
-            layout.padding = new RectOffset(sidePadding, sidePadding, 8, 8);
+            layout.padding = new RectOffset(0, 0, 8, 8);
             layout.spacing = 12f;
             layout.childAlignment = TextAnchor.UpperCenter;
             layout.childControlWidth = true;
@@ -360,26 +348,8 @@ namespace OverCleaning.EditorTools
             }
 
             TMP_Text goal = UIBuilder.CreateLabel(page, "Goal", "목표: 별 3개를 얻기 위한 목표", 30f, 96f);
-            TMP_Text pageNumber = UIBuilder.CreateLabel(page, "PageNumber", "1 / 3", 28f, 40f);
-            pageNumber.color = SubTextColor;
 
-            return new StagePage(stageNumber, stageName, thumbnail, placeholder.gameObject, stars, goal,
-                pageNumber);
-        }
-
-        private static Button CreateArrow(RectTransform panel, string name, string label, float anchorX)
-        {
-            Button button = UIBuilder.CreateButton(panel, name, label);
-            button.GetComponent<LayoutElement>().ignoreLayout = true;
-
-            RectTransform rect = button.GetComponent<RectTransform>();
-            rect.anchorMin = new Vector2(anchorX, 0.5f);
-            rect.anchorMax = new Vector2(anchorX, 0.5f);
-            rect.pivot = new Vector2(anchorX, 0.5f);
-            rect.sizeDelta = new Vector2(ArrowWidth, 120f);
-            // 패널 가장자리에서 조금 안쪽으로 들인다.
-            rect.anchoredPosition = new Vector2(anchorX < 0.5f ? 12f : -12f, 0f);
-            return button;
+            return new StagePage(stageNumber, stageName, thumbnail, placeholder.gameObject, stars, goal);
         }
 
         private static void SetFixedWidth(GameObject target, float width)

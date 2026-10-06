@@ -1,10 +1,12 @@
 using OverCleaning.Interaction;
+using OverCleaning.Stages;
 using UnityEngine;
 
 namespace OverCleaning.Lobby
 {
     /// <summary>
-    /// 대기방에 놓인 맵 선택 오브젝트. 상호작용하면 단계 선택의 주도권을 잡거나 내려놓는다.
+    /// 대기방 마을의 길가에 스테이지마다 하나씩 놓인 선택 오브젝트.
+    /// 상호작용하면 자기 스테이지로 단계 선택의 주도권을 잡거나 내려놓는다.
     /// 누군가 고르는 중이면 다른 사람은 상호작용할 수 없다.
     /// </summary>
     public sealed class StageSelectObject : MonoBehaviour, IInteractable
@@ -12,6 +14,9 @@ namespace OverCleaning.Lobby
         private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
 
         [SerializeField] private StageSelection _selection;
+
+        [Tooltip("상호작용하면 열릴 스테이지. 스테이지 목록에 있어야 한다.")]
+        [SerializeField] private StageDefinition _stage;
 
         [Tooltip("누가 고르는 중인지 색으로 알려줄 부분. 비워두면 색을 바꾸지 않는다.")]
         [SerializeField] private Renderer _indicatorRenderer;
@@ -51,7 +56,7 @@ namespace OverCleaning.Lobby
         public void Interact()
         {
             if (CanInteract)
-                _selection.ToggleControl();
+                _selection.ToggleControl(_stage);
         }
 
         private void UpdateIndicator()

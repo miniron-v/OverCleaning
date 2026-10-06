@@ -20,5 +20,11 @@ namespace OverCleaning.Stages
                 return null;
             return _stages[index];
         }
+
+        /// <summary>목록에 없으면 -1이다.</summary>
+        public int IndexOf(StageDefinition stage)
+        {
+            return _stages != null ? System.Array.IndexOf(_stages, stage) : -1;
+        }
     }
 }
