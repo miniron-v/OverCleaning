@@ -20,8 +20,17 @@ namespace OverCleaning.Lobby
     [RequireComponent(typeof(Rigidbody))]
     public sealed class Car : NetworkBehaviour, IInteractable
     {
-        /// <summary>내린 사람이 차 몸체에서 이만큼 떨어져야 다시 부딪히게 한다. 캐릭터 반지름보다 조금 크다.</summary>
+        /// <summary>내린 사람이나 치인 사람이 차 몸체에서 이만큼 떨어져야 다시 부딪히게 한다. 캐릭터 반지름보다 조금 크다.</summary>
         private const float LeavingClearance = 0.5f;
+
+        /// <summary>
+        /// 치인 뒤 이 시간(초)까지는 떨어져 있어도 차와 부딪히지 않는다. 남의 화면에서는 차가 늦게 보여
+        /// 치인 순간에는 아직 뒤에 있다가, 튕겨나는 사람을 따라잡아 붙잡아 버린다.
+        /// </summary>
+        private const float HitPassDuration = 1f;
+
+        /// <summary>치인 사람이 날아갈 방향을 차 중심에서 본 방향보다 이만큼(도) 더 옆으로 꺾는다. 옆으로 날아가는 느낌을 준다.</summary>
+        private const float HitSideAngle = 60f;
 
         [Tooltip("타는 순서대로: 운전석, 조수석, 운전석 뒤, 조수석 뒤. 차 바로 아래 자식이어야 한다.")]
         [SerializeField] private Transform[] _seats;
@@ -37,6 +46,7 @@ namespace OverCleaning.Lobby
         private readonly NetworkList<ulong> _occupants = new NetworkList<ulong>();
         private readonly List<NetworkObject> _seatedPlayers = new List<NetworkObject>();
         private readonly List<NetworkObject> _leavingPlayers = new List<NetworkObject>();
+        private readonly List<(NetworkObject Player, float PassUntil)> _hitPlayers = new List<(NetworkObject, float)>();
         private Rigidbody _rigidbody;
         private Collider _bodyCollider;
 
@@ -103,6 +113,70 @@ namespace OverCleaning.Lobby
         {
             if (_occupants.Remove(clientId))
                 UpdateDriver();
+        }
+
+        /// <summary>
+        /// 치임은 운전자 화면에서 바로 잡는다. 운전자 화면의 남의 캐릭터는 물리를 맡지 않아 벽처럼 차를 막으므로,
+        /// 치인 사람이 날아간 위치가 돌아올 때까지 차가 서 버린다. 서 있는 차에 걸어가 부딪힌 것은 치인 것이 아니다.
+        /// </summary>
+        private void OnCollisionEnter(Collision collision)
+        {
+            if (!IsSpawned || !IsOwner || GetDriverInput().sqrMagnitude < 0.01f || collision.rigidbody == null)
+                return;
+            if (!collision.rigidbody.TryGetComponent(out PlayerCrash victim))
+                return;
+
+            PassThrough(victim.NetworkObject);
+            HitPlayerRpc(victim, GetHitDirection(victim.transform.position));
+        }
+
+        /// <summary>
+        /// 달리는 쪽에서 치인 사람이 있는 쪽으로 꺾은 방향. 차 중심에서 치인 사람을 본 각도에 HitSideAngle을 더하되
+        /// 옆(90도)을 넘지 않는다. 앞범퍼 한가운데에 맞아 좌우를 가릴 수 없으면 아무 쪽으로나 날린다.
+        /// </summary>
+        private Vector3 GetHitDirection(Vector3 victimPosition)
+        {
+            Vector3 forward = transform.forward;
+            Vector3 offset = victimPosition - transform.position;
+            forward.y = 0f;
+            offset.y = 0f;
+
+            float side = Vector3.Dot(offset, transform.right);
+            float sign = Mathf.Abs(side) > 0.01f ? Mathf.Sign(side) : (Random.value < 0.5f ? -1f : 1f);
+            float angle = Mathf.Min(Vector3.Angle(forward, offset) + HitSideAngle, 90f);
+            return Quaternion.AngleAxis(sign * angle, Vector3.up) * forward;
+        }
+
+        [Rpc(SendTo.Server)]
+        private void HitPlayerRpc(NetworkBehaviourReference victimReference, Vector3 direction, RpcParams rpcParams = default)
+        {
+            // 운전자의 보고만 받아 준다.
+            if (rpcParams.Receive.SenderClientId != OwnerClientId)
+                return;
+            if (!victimReference.TryGet(out PlayerCrash victim))
+                return;
+            victim.ServerApplyCarHit(direction);
+            PassThroughRpc(victim);
+        }
+
+        /// <summary>
+        /// 치인 사람 화면에서도 차가 지나가게 한다. 그 화면의 차는 위치만 따라와 몸을 밀어 주지 못하고,
+        /// 튕겨나는 사람보다 빨라 뒤에서 따라잡아 붙잡아 버린다.
+        /// </summary>
+        [Rpc(SendTo.Everyone)]
+        private void PassThroughRpc(NetworkBehaviourReference victimReference)
+        {
+            if (victimReference.TryGet(out PlayerCrash victim))
+                PassThrough(victim.NetworkObject);
+        }
+
+        /// <summary>차가 지나갈 때까지 차와만 부딪히지 않게 한다. 벽과는 그대로 부딪힌다.</summary>
+        private void PassThrough(NetworkObject player)
+        {
+            if (_hitPlayers.Exists(hit => hit.Player == player) || !player.TryGetComponent(out Collider body))
+                return;
+            Physics.IgnoreCollision(_bodyCollider, body, true);
+            _hitPlayers.Add((player, Time.time + HitPassDuration));
         }
 
         /// <summary>
@@ -278,6 +352,16 @@ namespace OverCleaning.Lobby
                 if (player != null && player.TryGetComponent(out Collider body))
                     body.enabled = true;
                 _leavingPlayers.RemoveAt(index);
+            }
+
+            for (int index = _hitPlayers.Count - 1; index >= 0; index--)
+            {
+                NetworkObject player = _hitPlayers[index].Player;
+                if (player != null && (Time.time < _hitPlayers[index].PassUntil || !IsClearOfBody(player)))
+                    continue;
+                if (player != null && player.TryGetComponent(out Collider body))
+                    Physics.IgnoreCollision(_bodyCollider, body, false);
+                _hitPlayers.RemoveAt(index);
             }
         }
 
