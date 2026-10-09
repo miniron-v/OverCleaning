@@ -124,9 +124,9 @@ namespace OverCleaning.InGame
 
             _stunnedUntil.Value = NetworkManager.ServerTime.Time + _stunDuration;
 
-            // 전적에 더한다.
+            // 전적에 더한다. 전적은 한 판 동안만 세므로 판이 없는 대기방에서는 세지 않는다.
             PlayerScore score = GetComponent<PlayerScore>();
-            if (score != null)
+            if (score != null && FindAnyObjectByType<GameRound>() != null)
                 score.ServerAddCrash();
 
             // 들고 있던 것은 그 자리에 떨어뜨린다.
