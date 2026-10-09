@@ -5,7 +5,7 @@ namespace OverCleaning.InGame
 {
     /// <summary>
     /// 플레이어끼리 부딪치면 잠깐 기절한다. 들고 있던 물건을 그 자리에 떨어뜨리고,
-    /// 몸에 붙어 있던 털먼지가 주변 바닥에 흩어진다.
+    /// 몸에 붙어 있던 털먼지가 주변 바닥에 흩어진다. 달리는 차에 치이면 훨씬 멀리 튕겨난다.
     ///
     /// 부딪침은 각자 자기 캐릭터의 기기에서 재고, 한쪽이 보고하면 서버가 양쪽을 함께
     /// 기절시킨다. 기절한 모습(머리 위 별)은 모든 기기에서 그려야 하므로 이 컴포넌트는
@@ -20,6 +20,12 @@ namespace OverCleaning.InGame
 
         /// <summary>튕겨난 속도가 1초에 줄어드는 비율. 기절이 끝날 즈음이면 거의 멈춘다.</summary>
         private const float KnockbackDamping = 4f;
+
+        /// <summary>
+        /// 차에 치이면 사람과 부딪칠 때보다 이만큼 빠르게, 그만큼 멀리 튕겨난다.
+        /// 5 × 4 = 20으로 차의 속도와 같은 빠르기로 튕겨나고, 20 ÷ 감쇠 4 = 약 5m로 차 길이(4.4m)보다 조금 더 날아간다.
+        /// </summary>
+        private const float CarKnockbackMultiplier = 4f;
         [Tooltip("부딪칠 때 주변에 흩어질 털먼지 수. 흩어진 먼지는 다시 빨아들여야 한다.")]
         [Min(0)] [SerializeField] private int _furDustCount = 10;
         [Min(0.1f)] [SerializeField] private float _furDustRadius = 1.5f;
@@ -49,7 +55,9 @@ namespace OverCleaning.InGame
             _body = GetComponent<Rigidbody>();
         }
 
-        private void Update()
+        private void Update() => UpdateMovementFrozen();
+
+        private void UpdateMovementFrozen()
         {
             if (!IsOwner || _playerMovement == null)
                 return;
@@ -86,7 +94,7 @@ namespace OverCleaning.InGame
 
             // 부딪친 반대쪽으로 튕겨난다. 서버 확정을 기다리지 않고 바로 몸이 반응해야
             // 부딪친 느낌이 난다.
-            ApplyKnockback(_body.position - collision.rigidbody.position);
+            ApplyKnockback(_body.position - collision.rigidbody.position, _knockbackSpeed);
 
             ReportCrashRpc(other);
         }
@@ -105,26 +113,35 @@ namespace OverCleaning.InGame
 
             if (otherReference.TryGet(out PlayerCrash other))
             {
-                ServerApplyCrash(other._body.position);
-                other.ServerApplyCrash(_body.position);
+                ServerApplyCrash(_body.position - other._body.position, _knockbackSpeed);
+                other.ServerApplyCrash(other._body.position - _body.position, other._knockbackSpeed);
             }
             else
             {
-                ServerApplyCrash(_body.position);
+                ServerApplyCrash(Vector3.zero, _knockbackSpeed);
             }
         }
 
+        /// <summary>
+        /// 서버에서만 부른다. 치임은 운전자 화면에서 잡고 날아갈 방향도 거기서 정한다(Car).
+        /// 치인 사람만 기절하고, 차와 운전자는 그대로 달린다.
+        /// </summary>
+        internal void ServerApplyCarHit(Vector3 direction)
+        {
+            ServerApplyCrash(direction, _knockbackSpeed * CarKnockbackMultiplier);
+        }
+
         /// <summary>서버에서만 부른다. 기절시키고, 든 것을 떨어뜨리고, 털먼지를 흩는다.</summary>
-        private void ServerApplyCrash(Vector3 awayFromPosition)
+        private void ServerApplyCrash(Vector3 knockbackDirection, float knockbackSpeed)
         {
             if (IsStunned)
                 return;
 
             _stunnedUntil.Value = NetworkManager.ServerTime.Time + _stunDuration;
 
-            // 전적에 더한다.
+            // 전적에 더한다. 전적은 한 판 동안만 세므로 판이 없는 대기방에서는 세지 않는다.
             PlayerScore score = GetComponent<PlayerScore>();
-            if (score != null)
+            if (score != null && FindAnyObjectByType<GameRound>() != null)
                 score.ServerAddCrash();
 
             // 들고 있던 것은 그 자리에 떨어뜨린다.
@@ -135,24 +152,26 @@ namespace OverCleaning.InGame
             SpillFurDustRpc(_body.position, Random.Range(1, int.MaxValue));
 
             // 제 기기에서 충돌을 못 잡은 쪽도 튕겨나도록 주인에게 알린다.
-            KnockbackRpc(_body.position - awayFromPosition);
+            KnockbackRpc(knockbackDirection, knockbackSpeed);
         }
 
         [Rpc(SendTo.Owner)]
-        private void KnockbackRpc(Vector3 direction)
+        private void KnockbackRpc(Vector3 direction, float speed)
         {
             // 제 기기에서 이미 예측으로 튕겨났으면 두 번 하지 않는다.
             if (Time.time < _predictedStunEndTime)
                 return;
-            ApplyKnockback(direction);
+            ApplyKnockback(direction, speed);
         }
 
-        private void ApplyKnockback(Vector3 direction)
+        private void ApplyKnockback(Vector3 direction, float speed)
         {
             direction.y = 0f;
             if (direction.sqrMagnitude > 0.000001f)
-                _body.linearVelocity = direction.normalized * _knockbackSpeed;
+                _body.linearVelocity = direction.normalized * speed;
             _predictedStunEndTime = Time.time + _stunDuration;
+            // RPC는 프레임 초반에 오므로 Update까지 기다리면 그 사이 이동 코드가 튕겨난 속도를 덮어쓴다.
+            UpdateMovementFrozen();
         }
 
         /// <summary>털먼지는 모두의 바닥에 같은 자리로 흩어져야 한다. 시드로 맞춘다.</summary>

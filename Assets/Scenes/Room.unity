@@ -3403,6 +3403,129 @@ MonoBehaviour:
   _playerRadius: 0.4
   _maxAngle: 100
   _closeSpeed: 90
+--- !u!1 &328464107
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 328464109}
+  - component: {fileID: 328464108}
+  - component: {fileID: 328464110}
+  m_Layer: 0
+  m_Name: Dust Field
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &328464108
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 328464107}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d5a57f767e5e46a458fc5d3c628d0cbb, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Unity.Netcode.Runtime::Unity.Netcode.NetworkObject
+  GlobalObjectIdHash: 1648959854
+  InScenePlacedSourceGlobalObjectIdHash: 0
+  m_InScenePlacedDisabledByDefault: 0
+  DeferredDespawnTick: 0
+  Ownership: 1
+  AlwaysReplicateAsRoot: 0
+  SynchronizeTransform: 1
+  m_InScenePlaced: 1
+  ActiveSceneSynchronization: 0
+  SceneMigrationSynchronization: 0
+  SpawnWithObservers: 1
+  DontDestroyWithOwner: 0
+  AutoObjectParentSync: 1
+  SyncOwnerTransformWhenParented: 1
+  AllowOwnerToParent: 0
+--- !u!4 &328464109
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 328464107}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &328464110
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 328464107}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 78028bda62d94aaabbf4fb7fa185c603, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::OverCleaning.InGame.DustField
+  ShowTopMostFoldoutHeaderGroup: 1
+  _floors:
+  - {fileID: 2131039854}
+  - {fileID: 1780732974}
+  - {fileID: 1869985207}
+  - {fileID: 817292300}
+  - {fileID: 1328107345}
+  - {fileID: 1640483683}
+  - {fileID: 1180653089}
+  - {fileID: 1617194358}
+  - {fileID: 990034017}
+  - {fileID: 2032915106}
+  - {fileID: 2106286814}
+  - {fileID: 2017754917}
+  - {fileID: 547118829}
+  - {fileID: 2147449729}
+  - {fileID: 1573584956}
+  - {fileID: 111920497}
+  - {fileID: 72056576}
+  - {fileID: 466099839}
+  - {fileID: 1626100182}
+  - {fileID: 1119759496}
+  - {fileID: 1730772451}
+  - {fileID: 138312769}
+  - {fileID: 1205642631}
+  - {fileID: 1762236274}
+  - {fileID: 83718308}
+  - {fileID: 722244672}
+  - {fileID: 1935389713}
+  - {fileID: 229381826}
+  - {fileID: 1284975174}
+  _clusterProbability: 0.8
+  _clustersPerFloor: 3
+  _clusterRadius: 1.4
+  _obstacleLayers:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  _edgeMargin: 0.1
+  _dustCount: 0
+  _spillHeadroom: 150
+  _spilledDustLifetime: 5
+  _dustSizeRange: {x: 0.5, y: 1}
+  _dustColors:
+  - {r: 0.9056604, g: 0, b: 0.11921656, a: 1}
+  - {r: 1, g: 0.65616584, b: 0.25943398, a: 1}
+  - {r: 0.13679248, g: 0.5458709, b: 1, a: 1}
+  _dustMaterial: {fileID: 2100000, guid: 8e82229db1a8465cba39e55042d245c5, type: 2}
+  _dustTextures:
+  - {fileID: 2800000, guid: 91f2250d9a74459abc5a8aef911f7401, type: 3}
+  - {fileID: 2800000, guid: 91f2250d9a74459abc5a8aef911f7402, type: 3}
+  - {fileID: 2800000, guid: 91f2250d9a74459abc5a8aef911f7403, type: 3}
 --- !u!1 &330585543
 GameObject:
   m_ObjectHideFlags: 0
@@ -3556,6 +3679,7 @@ MonoBehaviour:
   _offset: {x: 0, y: 18, z: -13}
   _smoothTime: 0.15
   _wideFieldOfView: 45
+  _ridingFieldOfView: 60
   _zoomSpeed: 60
 --- !u!1 &357345657
 GameObject:
@@ -23526,3 +23650,4 @@ SceneRoots:
   - {fileID: 1679507146}
   - {fileID: 1679923375}
   - {fileID: 2130618030}
+  - {fileID: 328464109}
