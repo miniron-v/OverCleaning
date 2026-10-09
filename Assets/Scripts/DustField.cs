@@ -9,6 +9,9 @@ namespace OverCleaning.InGame
         private const float SurfaceOffset = 0.02f;
         private const int PlacementAttemptsPerParticle = 20;
 
+        /// <summary>저절로 사라지는 먼지가 마지막에 흐려지는 시간(초).</summary>
+        private const float SpilledDustFadeDuration = 1f;
+
         /// <summary>아직 서버가 시드를 정해주지 않았다는 뜻. 시드는 1 이상만 쓴다.</summary>
         private const int UnsetSeed = 0;
 
@@ -24,6 +27,8 @@ namespace OverCleaning.InGame
         [Tooltip("쏟기와 흩뿌리기로 늘어날 수 있는 여유 칸. 부딪칠 때 나오는 씨앗은 새로 생기는 " +
                  "먼지라 이 여유가 없으면 바닥이 차 있을 때 조용히 사라진다.")]
         [Min(0)] [SerializeField] private int _spillHeadroom = 150;
+        [Tooltip("쏟거나 흩뿌린 먼지가 저절로 사라지기까지의 시간(초). 0이면 치우기 전까지 남는다.")]
+        [Min(0f)] [SerializeField] private float _spilledDustLifetime;
         [Tooltip("먼지 크기의 최솟값과 최댓값.")]
         [SerializeField] private Vector2 _dustSizeRange = new Vector2(0.1f, 0.25f);
         [SerializeField] private Color[] _dustColors =
@@ -45,6 +50,9 @@ namespace OverCleaning.InGame
 
         /// <summary>먼지마다 붙는 번호. 자리가 바뀌어도 따라다녀 기기 사이에서 같은 먼지를 가리킨다.</summary>
         private int[] _dustIds;
+
+        /// <summary>먼지마다 저절로 사라질 시각. 사라지지 않는 먼지는 무한대다.</summary>
+        private float[] _expireTimes;
 
         /// <summary>
         /// 쏟은 먼지에 붙일 다음 번호. 쏟기는 모든 기기에서 같은 시드로 같은 수만큼 도므로
@@ -349,6 +357,8 @@ namespace OverCleaning.InGame
             _particles = new ParticleSystem.Particle[capacity];
             _textureIndices = new int[capacity];
             _dustIds = new int[capacity];
+            _expireTimes = new float[capacity];
+            System.Array.Fill(_expireTimes, float.PositiveInfinity);
             _renderBuffer = new ParticleSystem.Particle[capacity];
             _suctionStates = new SuctionState[capacity];
             RemainingDustCount = 0;
@@ -516,6 +526,22 @@ namespace OverCleaning.InGame
             bool changed = false;
             for (int index = RemainingDustCount - 1; index >= 0; index--)
             {
+                // 흘린 먼지는 모든 기기에서 같은 때 쏟아지므로 각자 시계로 지워도 화면이 맞는다.
+                float remainingLifetime = _expireTimes[index] - Time.time;
+                if (remainingLifetime <= 0f)
+                {
+                    RemoveParticleAt(index);
+                    changed = true;
+                    continue;
+                }
+                if (remainingLifetime < SpilledDustFadeDuration)
+                {
+                    Color32 color = _particles[index].startColor;
+                    color.a = (byte)(255f * remainingLifetime / SpilledDustFadeDuration);
+                    _particles[index].startColor = color;
+                    changed = true;
+                }
+
                 SuctionState suction = _suctionStates[index];
                 if (!suction.IsActive)
                     continue;
@@ -620,6 +646,7 @@ namespace OverCleaning.InGame
             _particles[index] = _particles[RemainingDustCount];
             _textureIndices[index] = _textureIndices[RemainingDustCount];
             _dustIds[index] = _dustIds[RemainingDustCount];
+            _expireTimes[index] = _expireTimes[RemainingDustCount];
             _suctionStates[index] = _suctionStates[RemainingDustCount];
             _suctionStates[RemainingDustCount] = default;
         }
@@ -687,6 +714,9 @@ namespace OverCleaning.InGame
                 // 흡입되어 비었던 자리를 다시 쓴다. 그 자리에는 아직 살아 있는 먼지의 번호와
                 // 흡입 상태가 남아 있으므로, 새 번호를 붙이고 상태를 지운다.
                 _dustIds[RemainingDustCount] = _nextDustId++;
+                _expireTimes[RemainingDustCount] = _spilledDustLifetime > 0f
+                    ? Time.time + _spilledDustLifetime
+                    : float.PositiveInfinity;
                 _suctionStates[RemainingDustCount] = default;
                 RemainingDustCount++;
                 spilledCount++;
