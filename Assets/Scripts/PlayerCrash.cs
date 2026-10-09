@@ -49,7 +49,9 @@ namespace OverCleaning.InGame
             _body = GetComponent<Rigidbody>();
         }
 
-        private void Update()
+        private void Update() => UpdateMovementFrozen();
+
+        private void UpdateMovementFrozen()
         {
             if (!IsOwner || _playerMovement == null)
                 return;
@@ -153,6 +155,8 @@ namespace OverCleaning.InGame
             if (direction.sqrMagnitude > 0.000001f)
                 _body.linearVelocity = direction.normalized * _knockbackSpeed;
             _predictedStunEndTime = Time.time + _stunDuration;
+            // RPC는 프레임 초반에 오므로 Update까지 기다리면 그 사이 이동 코드가 튕겨난 속도를 덮어쓴다.
+            UpdateMovementFrozen();
         }
 
         /// <summary>털먼지는 모두의 바닥에 같은 자리로 흩어져야 한다. 시드로 맞춘다.</summary>
