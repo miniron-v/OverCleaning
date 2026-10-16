@@ -22,6 +22,7 @@ GameObject:
   - component: {fileID: 5829598544476728502}
   - component: {fileID: 912834710293847561}
   - component: {fileID: 912834710293847562}
+  - component: {fileID: 912834710293847563}
   m_Layer: 0
   m_Name: Player
   m_TagString: Untagged
@@ -397,3 +398,16 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 5788380ebf63404db19261a4be4877c1, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::OverCleaning.InGame.PlayerScore
+--- !u!114 &912834710293847563
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1868286105046901289}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: cf5da4056f46494dbf7cc38a95ed746b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::OverCleaning.InGame.PlayerNameTag
+  _height: 2.6

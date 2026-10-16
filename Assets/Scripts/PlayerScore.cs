@@ -30,12 +30,19 @@ namespace OverCleaning.InGame
             }
         }
 
-        public override void OnNetworkSpawn()
+        private void Update()
         {
-            if (!IsOwner)
+            // 스폰 순간에는 세션 정보가 늦거나 스폰 처리 중의 쓰기가 전달되지 않을 수 있어,
+            // 한 번만 적으면 참가자의 이름이 비어 버리는 일이 있다. 적힐 때까지 다시 쓴다.
+            if (!IsOwner || !IsSpawned || !_nickname.Value.IsEmpty)
                 return;
+
+            string localNickname = GameSession.LocalNickname;
+            if (string.IsNullOrEmpty(localNickname))
+                return;
+
             FixedString64Bytes nickname = default;
-            nickname.CopyFromTruncated(GameSession.LocalNickname);
+            nickname.CopyFromTruncated(localNickname);
             _nickname.Value = nickname;
         }
 
