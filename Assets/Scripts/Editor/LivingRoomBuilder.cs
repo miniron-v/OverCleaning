@@ -1,3 +1,4 @@
+using OverCleaning.InGame;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -36,14 +37,173 @@ namespace OverCleaning.EditorTools
             Transform root = new GameObject(FurnitureRootName).transform;
             root.SetParent(map.transform, false);
 
+            BuildFinishes();
             BuildLivingRoom(root);
             BuildStudyCorner(root);
             BuildDiningRoom(root);
             BuildCorridor(root);
+            RestyleVacuum();
+            RestyleTrashCan();
 
             EditorSceneManager.MarkSceneDirty(root.gameObject.scene);
             Selection.activeGameObject = root.gameObject;
             Debug.Log("거실 가구를 만들었습니다. 씬을 저장하세요.");
+        }
+
+        /// <summary>
+        /// 바닥을 원목 마루로, 벽을 크림 벽지 톤으로 바꾼다. 파티션은 세이지로 투톤을 준다.
+        /// 벽은 단색만 쓴다. 플레이 중 WallFader가 반투명 셰이더로 갈아 끼우며 색만 가져가서,
+        /// 무늬를 입혀도 그때 사라진다. 벽 전용 머티리얼이 생기므로 다른 물건과
+        /// 머티리얼을 나눠 쓰던 문제도 함께 풀린다.
+        /// </summary>
+        private static void BuildFinishes()
+        {
+            Material roomFloor = GetWoodMaterial("Wood Floor Room", new Vector2(3.75f, 4f), Color.white);
+            Material corridorFloor = GetWoodMaterial("Wood Floor Corridor", new Vector2(11.5f, 3f),
+                new Color(0.86f, 0.82f, 0.78f));
+            AssignMaterial("DustFloor_Room1", roomFloor);
+            AssignMaterial("DustFloor_Room2", roomFloor);
+            AssignMaterial("DustFloor_Room3", roomFloor);
+            AssignMaterial("Floor_Corridor", corridorFloor);
+
+            Material cream = GetMaterial("Wall Cream", new Color(0.91f, 0.88f, 0.81f));
+            Material sage = GetMaterial("Wall Sage", new Color(0.72f, 0.76f, 0.68f));
+            foreach (string wall in new[]
+            {
+                "Wall", "Wall (1)", "Wall (2)", "Wall (3)",
+                "Room1 Door Left", "Room1 Door Right", "Room2 Door Left", "Room2 Door Right",
+                "Room3 Door Left", "Room3 Door Right",
+            })
+                AssignMaterial(wall, cream);
+            AssignMaterial("Partition Left", sage);
+            AssignMaterial("Partition Right", sage);
+        }
+
+        /// <summary>
+        /// 청소기를 캐니스터형으로 다시 그린다. Collider와 흡입구는 그대로 두고
+        /// 겉모습만 바꾸며, 상태색을 보여 주는 노즐 Renderer를 새 노즐로 이어 준다.
+        /// </summary>
+        private static void RestyleVacuum()
+        {
+            GameObject vacuumObject = GameObject.Find("Vacuum");
+            if (vacuumObject == null)
+                return;
+            ClearVisualChildren(vacuumObject.transform, "Suction Point");
+
+            Material red = GetMaterial("Vacuum Red", new Color(0.66f, 0.26f, 0.24f));
+            Material dark = GetMaterial("Appliance Dark", new Color(0.2f, 0.21f, 0.23f));
+            Material light = GetMaterial("Nozzle Light", new Color(0.86f, 0.86f, 0.86f));
+            Transform parent = vacuumObject.transform;
+
+            // 눕힌 캡슐 몸통과 바퀴. 끄는 캐니스터 청소기 모양이다.
+            Shape(parent, "Vacuum Body", PrimitiveType.Capsule, new Vector3(0f, 0.42f, 0.8f),
+                new Vector3(0.6f, 0.5f, 0.62f), Quaternion.Euler(90f, 0f, 0f), red);
+            Shape(parent, "Vacuum Body Stripe", PrimitiveType.Cube, new Vector3(0f, 0.63f, 0.8f),
+                new Vector3(0.5f, 0.05f, 0.72f), Quaternion.identity, dark);
+            Shape(parent, "Vacuum Wheel Left", PrimitiveType.Cylinder, new Vector3(-0.34f, 0.2f, 0.55f),
+                new Vector3(0.4f, 0.05f, 0.4f), Quaternion.Euler(0f, 0f, 90f), dark);
+            Shape(parent, "Vacuum Wheel Right", PrimitiveType.Cylinder, new Vector3(0.34f, 0.2f, 0.55f),
+                new Vector3(0.4f, 0.05f, 0.4f), Quaternion.Euler(0f, 0f, 90f), dark);
+            Shape(parent, "Vacuum Caster", PrimitiveType.Sphere, new Vector3(0f, 0.12f, 0.35f),
+                new Vector3(0.24f, 0.24f, 0.24f), Quaternion.identity, dark);
+            Shape(parent, "Vacuum Handle", PrimitiveType.Cube, new Vector3(0f, 0.8f, 0.42f),
+                new Vector3(0.26f, 0.05f, 0.34f), Quaternion.Euler(-35f, 0f, 0f), dark);
+            Shape(parent, "Vacuum Pipe", PrimitiveType.Cube, new Vector3(0f, 0.3f, 1.18f),
+                new Vector3(0.14f, 0.09f, 0.52f), Quaternion.Euler(40f, 0f, 0f), dark);
+            GameObject nozzle = Shape(parent, "Vacuum Nozzle", PrimitiveType.Cube,
+                new Vector3(0f, 0.1f, 1.38f), new Vector3(0.62f, 0.16f, 0.28f), Quaternion.identity, light);
+
+            Vacuum vacuum = vacuumObject.GetComponent<Vacuum>();
+            if (vacuum != null)
+            {
+                SerializedObject serialized = new SerializedObject(vacuum);
+                serialized.FindProperty("_nozzleRenderer").objectReferenceValue =
+                    nozzle.GetComponent<Renderer>();
+                serialized.ApplyModifiedPropertiesWithoutUndo();
+            }
+        }
+
+        /// <summary>쓰레기통을 페달 달린 원통으로 다시 그린다. Collider는 그대로 둔다.</summary>
+        private static void RestyleTrashCan()
+        {
+            GameObject binObject = GameObject.Find("Trash Can");
+            if (binObject == null)
+                return;
+            ClearVisualChildren(binObject.transform);
+
+            Material green = GetMaterial("Bin Green", new Color(0.37f, 0.45f, 0.4f));
+            Material rim = GetMaterial("Bin Rim", new Color(0.26f, 0.32f, 0.28f));
+            Material dark = GetMaterial("Appliance Dark", new Color(0.2f, 0.21f, 0.23f));
+            Transform parent = binObject.transform;
+
+            Shape(parent, "Bin Body", PrimitiveType.Cylinder, new Vector3(0f, 0.6f, 0f),
+                new Vector3(1f, 0.6f, 1f), Quaternion.identity, green);
+            Shape(parent, "Bin Rim", PrimitiveType.Cylinder, new Vector3(0f, 1.22f, 0f),
+                new Vector3(1.08f, 0.05f, 1.08f), Quaternion.identity, rim);
+            Shape(parent, "Bin Opening", PrimitiveType.Cylinder, new Vector3(0f, 1.27f, 0f),
+                new Vector3(0.85f, 0.012f, 0.85f), Quaternion.identity, dark);
+            Shape(parent, "Bin Pedal", PrimitiveType.Cube, new Vector3(0f, 0.09f, 0.56f),
+                new Vector3(0.3f, 0.16f, 0.16f), Quaternion.identity, dark);
+            Shape(parent, "Bin Handle Left", PrimitiveType.Cube, new Vector3(-0.54f, 0.95f, 0f),
+                new Vector3(0.08f, 0.22f, 0.2f), Quaternion.identity, rim);
+            Shape(parent, "Bin Handle Right", PrimitiveType.Cube, new Vector3(0.54f, 0.95f, 0f),
+                new Vector3(0.08f, 0.22f, 0.2f), Quaternion.identity, rim);
+        }
+
+        /// <summary>남길 이름만 빼고 자식을 지운다. 겉모습을 새로 그리기 전에 부른다.</summary>
+        private static void ClearVisualChildren(Transform parent, string keepName = null)
+        {
+            for (int index = parent.childCount - 1; index >= 0; index--)
+            {
+                Transform child = parent.GetChild(index);
+                if (child.name != keepName)
+                    Object.DestroyImmediate(child.gameObject);
+            }
+        }
+
+        /// <summary>장식 도형. 겉모습일 뿐이므로 Collider는 두지 않는다.</summary>
+        private static GameObject Shape(Transform parent, string name, PrimitiveType type,
+            Vector3 position, Vector3 scale, Quaternion rotation, Material material)
+        {
+            GameObject shape = GameObject.CreatePrimitive(type);
+            shape.name = name;
+            shape.transform.SetParent(parent, false);
+            shape.transform.localPosition = position;
+            shape.transform.localRotation = rotation;
+            shape.transform.localScale = scale;
+            shape.GetComponent<Renderer>().sharedMaterial = material;
+            Object.DestroyImmediate(shape.GetComponent<Collider>());
+            return shape;
+        }
+
+        private static void AssignMaterial(string objectName, Material material)
+        {
+            GameObject target = GameObject.Find(objectName);
+            if (target == null)
+            {
+                Debug.LogWarning($"'{objectName}'을 찾지 못해 머티리얼을 입히지 못했습니다.");
+                return;
+            }
+            target.GetComponent<Renderer>().sharedMaterial = material;
+        }
+
+        /// <summary>원목 마루 텍스처를 입힌 바닥 머티리얼. 바닥 크기에 맞게 타일링한다.</summary>
+        private static Material GetWoodMaterial(string name, Vector2 tiling, Color tint)
+        {
+            string path = $"{MaterialFolder}/{name}.mat";
+            Material material = AssetDatabase.LoadAssetAtPath<Material>(path);
+            if (material != null)
+                return material;
+
+            material = new Material(Shader.Find("Universal Render Pipeline/Lit"));
+            material.SetColor("_BaseColor", tint);
+            material.SetTexture("_BaseMap",
+                AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/Textures/Furniture/WoodFloor.png"));
+            material.SetTextureScale("_BaseMap", tiling);
+            if (!AssetDatabase.IsValidFolder(MaterialFolder))
+                AssetDatabase.CreateFolder("Assets/Materials", "Furniture");
+            AssetDatabase.CreateAsset(material, path);
+            return material;
         }
 
         /// <summary>가운데 방. 북쪽 벽에 소파를 붙이고 남쪽 문가 벽에 TV를 마주 보게 둔다.</summary>
@@ -118,12 +278,25 @@ namespace OverCleaning.EditorTools
             Plant(root, "Dining Plant", new Vector3(4.2f, 0f, 5.5f));
         }
 
-        /// <summary>복도. 스폰 자리와 청소기, 쓰레기통을 피해 동쪽 끝에 콘솔만 둔다.</summary>
+        /// <summary>
+        /// 복도. 스폰 자리와 청소기, 쓰레기통을 피해 동쪽 끝에 콘솔만 두고,
+        /// 긴 러너 러그와 방마다 도어매트를 깔아 집 복도 느낌을 준다.
+        /// </summary>
         private static void BuildCorridor(Transform root)
         {
             Material oak = GetMaterial("Oak", new Color(0.54f, 0.42f, 0.3f));
             Box(root, "Console Table", new Vector3(10.1f, 0.35f, -4f), new Vector3(0.55f, 0.7f, 1.6f), oak);
             Plant(root, "Corridor Plant", new Vector3(10.1f, 0f, -5.7f));
+
+            Material runner = GetMaterial("Runner Red", new Color(0.59f, 0.34f, 0.31f));
+            Box(root, "Runner Rug", new Vector3(1f, 0.004f, -4f), new Vector3(14f, 0.008f, 1.5f), runner, false);
+
+            Material teal = GetMaterial("Chair Teal", new Color(0.37f, 0.63f, 0.6f));
+            Material yellow = GetMaterial("Cushion Yellow", new Color(0.91f, 0.76f, 0.35f));
+            Material coral = GetMaterial("Cushion Coral", new Color(0.85f, 0.48f, 0.42f));
+            Box(root, "Doormat Room1", new Vector3(-7f, 0.006f, -1.45f), new Vector3(1.6f, 0.012f, 0.7f), teal, false);
+            Box(root, "Doormat Room2", new Vector3(0f, 0.006f, -1.45f), new Vector3(1.6f, 0.012f, 0.7f), yellow, false);
+            Box(root, "Doormat Room3", new Vector3(7f, 0.006f, -1.45f), new Vector3(1.6f, 0.012f, 0.7f), coral, false);
         }
 
         /// <summary>화분. 통에만 Collider를 두고 수풀은 장식이다.</summary>
