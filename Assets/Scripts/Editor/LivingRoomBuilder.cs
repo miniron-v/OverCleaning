@@ -37,7 +37,9 @@ namespace OverCleaning.EditorTools
             Transform root = new GameObject(FurnitureRootName).transform;
             root.SetParent(map.transform, false);
 
+            RefineShell();
             BuildFinishes();
+            BuildYard(root);
             BuildLivingRoom(root);
             BuildStudyCorner(root);
             BuildDiningRoom(root);
@@ -48,6 +50,101 @@ namespace OverCleaning.EditorTools
             EditorSceneManager.MarkSceneDirty(root.gameObject.scene);
             Selection.activeGameObject = root.gameObject;
             Debug.Log("거실 가구를 만들었습니다. 씬을 저장하세요.");
+        }
+
+        /// <summary>
+        /// 바깥벽을 얇게 깎고 벽 밑으로 삐져나온 바닥 가장자리를 다듬는다.
+        /// 벽의 안쪽 면 자리는 그대로 두므로 플레이 영역과 판정은 변하지 않는다.
+        /// </summary>
+        private static void RefineShell()
+        {
+            const float thickness = 0.35f;
+
+            // 바깥벽: 안쪽 면(±10.5, ±6)을 고정한 채 바깥쪽으로만 얇아진다.
+            SetTransform("Wall (2)", new Vector3(0f, 1f, -6f - thickness * 0.5f), new Vector3(21.7f, 2f, thickness));
+            SetTransform("Wall (3)", new Vector3(0f, 1f, 6f + thickness * 0.5f), new Vector3(21.7f, 2f, thickness));
+            SetTransform("Wall", new Vector3(-10.5f - thickness * 0.5f, 1f, 0f), new Vector3(thickness, 2f, 12.7f));
+            SetTransform("Wall (1)", new Vector3(10.5f + thickness * 0.5f, 1f, 0f), new Vector3(thickness, 2f, 12.7f));
+
+            // 바닥: 벽 바깥면까지만 깔리게 다듬는다. 두꺼운 벽 밑까지 뻗어 있던 가장자리가
+            // 밖에서 흰 테두리처럼 보였다.
+            SetTransform("Floor_Corridor", new Vector3(0f, 0f, -3.675f), new Vector3(21.7f, 5.35f, 1f));
+            SetTransform("DustFloor_Room1", new Vector3(-7.175f, 0f, 2.675f), new Vector3(7.35f, 7.35f, 1f));
+            SetTransform("DustFloor_Room2", new Vector3(0f, 0f, 2.675f), new Vector3(7f, 7.35f, 1f));
+            SetTransform("DustFloor_Room3", new Vector3(7.175f, 0f, 2.675f), new Vector3(7.35f, 7.35f, 1f));
+        }
+
+        /// <summary>집 둘레의 마당. 잔디와 나무, 덤불로 바깥 허공을 채운다. 전부 장식이다.</summary>
+        private static void BuildYard(Transform root)
+        {
+            Transform yard = new GameObject("Yard").transform;
+            yard.SetParent(root, false);
+
+            Material grass = GetMaterial("Yard Grass", new Color(0.42f, 0.55f, 0.36f));
+            Material trunk = GetMaterial("Tree Trunk", new Color(0.4f, 0.3f, 0.22f));
+            Material leaf = GetMaterial("Tree Leaf", new Color(0.27f, 0.42f, 0.24f));
+            Material stone = GetMaterial("Yard Stone", new Color(0.62f, 0.62f, 0.58f));
+
+            Box(yard, "Grass", new Vector3(0f, -0.06f, 0f), new Vector3(90f, 0.1f, 60f), grass, false);
+
+            foreach (Vector3 position in new[]
+            {
+                new Vector3(-15.5f, 0f, 8.5f), new Vector3(-17.5f, 0f, -3f), new Vector3(-13.5f, 0f, -9.5f),
+                new Vector3(15.5f, 0f, 9f), new Vector3(18f, 0f, -1.5f), new Vector3(14f, 0f, -10f),
+                new Vector3(-5f, 0f, 11f), new Vector3(7.5f, 0f, 10.5f),
+            })
+                Tree(yard, position, trunk, leaf);
+
+            foreach (Vector3 position in new[]
+            {
+                new Vector3(-12.5f, 0f, 3f), new Vector3(-12.8f, 0f, -6.5f), new Vector3(12.6f, 0f, 4.5f),
+                new Vector3(12.4f, 0f, -7f), new Vector3(-2f, 0f, 8.5f), new Vector3(3.5f, 0f, 8.8f),
+                new Vector3(-16f, 0f, 2f), new Vector3(16.5f, 0f, 6f),
+            })
+            {
+                GameObject bush = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                bush.name = "Bush";
+                bush.transform.SetParent(yard, false);
+                bush.transform.localPosition = position + Vector3.up * 0.3f;
+                bush.transform.localScale = new Vector3(0.9f, 0.6f, 0.9f);
+                bush.GetComponent<Renderer>().sharedMaterial = leaf;
+                Object.DestroyImmediate(bush.GetComponent<Collider>());
+            }
+
+            foreach (Vector3 position in new[]
+            {
+                new Vector3(-13.2f, 0f, 0.5f), new Vector3(13.4f, 0f, 1.2f), new Vector3(0.5f, 0f, 9.3f),
+            })
+            {
+                GameObject rock = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+                rock.name = "Stone";
+                rock.transform.SetParent(yard, false);
+                rock.transform.localPosition = position + Vector3.up * 0.03f;
+                rock.transform.localScale = new Vector3(0.7f, 0.04f, 0.7f);
+                rock.GetComponent<Renderer>().sharedMaterial = stone;
+                Object.DestroyImmediate(rock.GetComponent<Collider>());
+            }
+        }
+
+        /// <summary>마당 나무 한 그루. 기둥과 수풀 공이다.</summary>
+        private static void Tree(Transform yard, Vector3 floorPosition, Material trunk, Material leaf)
+        {
+            Shape(yard, "Tree Trunk", PrimitiveType.Cylinder, floorPosition + Vector3.up * 0.8f,
+                new Vector3(0.35f, 0.8f, 0.35f), Quaternion.identity, trunk);
+            Shape(yard, "Tree Leaves", PrimitiveType.Sphere, floorPosition + Vector3.up * 2f,
+                new Vector3(2.2f, 1.9f, 2.2f), Quaternion.identity, leaf);
+        }
+
+        private static void SetTransform(string objectName, Vector3 position, Vector3 scale)
+        {
+            GameObject target = GameObject.Find(objectName);
+            if (target == null)
+            {
+                Debug.LogWarning($"'{objectName}'을 찾지 못해 크기를 고치지 못했습니다.");
+                return;
+            }
+            target.transform.localPosition = position;
+            target.transform.localScale = scale;
         }
 
         /// <summary>
