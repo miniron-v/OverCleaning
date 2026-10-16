@@ -86,7 +86,7 @@ namespace OverCleaning.EditorTools
         /// 순백 과노출 대신 따뜻한 색과 낮춘 세기를 쓴다. 바닥에 깔린 먼지가 잘 보이도록
         /// 주변광은 밝은 중간톤으로 둔다.
         /// </summary>
-        private static void TuneLighting()
+        internal static void TuneLighting()
         {
             GameObject lightObject = GameObject.Find("Directional Light");
             if (lightObject != null && lightObject.TryGetComponent(out Light sun))
@@ -220,7 +220,7 @@ namespace OverCleaning.EditorTools
         /// 청소기를 캐니스터형으로 다시 그린다. Collider와 흡입구는 그대로 두고
         /// 겉모습만 바꾸며, 상태색을 보여 주는 노즐 Renderer를 새 노즐로 이어 준다.
         /// </summary>
-        private static void RestyleVacuum()
+        internal static void RestyleVacuum()
         {
             GameObject vacuumObject = GameObject.Find("Vacuum");
             if (vacuumObject == null)
@@ -261,7 +261,7 @@ namespace OverCleaning.EditorTools
         }
 
         /// <summary>쓰레기통을 페달 달린 원통으로 다시 그린다. Collider는 그대로 둔다.</summary>
-        private static void RestyleTrashCan()
+        internal static void RestyleTrashCan()
         {
             GameObject binObject = GameObject.Find("Trash Can");
             if (binObject == null)
@@ -325,7 +325,7 @@ namespace OverCleaning.EditorTools
         }
 
         /// <summary>원목 마루 텍스처를 입힌 바닥 머티리얼. 바닥 크기에 맞게 타일링한다.</summary>
-        private static Material GetWoodMaterial(string name, Vector2 tiling, Color tint)
+        internal static Material GetWoodMaterial(string name, Vector2 tiling, Color tint)
         {
             string path = $"{MaterialFolder}/{name}.mat";
             Material material = AssetDatabase.LoadAssetAtPath<Material>(path);
@@ -470,7 +470,7 @@ namespace OverCleaning.EditorTools
         /// 색만 다른 단색 머티리얼. 이미 있으면 색을 새 값으로 맞춘다.
         /// 색을 고치고 다시 실행해도 그대로 반영되게 하기 위해서다.
         /// </summary>
-        private static Material GetMaterial(string name, Color color)
+        internal static Material GetMaterial(string name, Color color)
         {
             if (!AssetDatabase.IsValidFolder(MaterialFolder))
                 AssetDatabase.CreateFolder("Assets/Materials", "Furniture");
