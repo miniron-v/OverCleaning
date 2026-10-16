@@ -72,6 +72,10 @@ namespace OverCleaning.EditorTools
             if (root.GetComponent<PlayerScore>() == null)
                 root.AddComponent<PlayerScore>();
 
+            // 이름표도 모든 캐릭터 위에 그려야 하므로 목록에 넣지 않는다.
+            if (root.GetComponent<PlayerNameTag>() == null)
+                root.AddComponent<PlayerNameTag>();
+
             NetworkPlayer networkPlayer = root.GetComponent<NetworkPlayer>();
             if (networkPlayer == null)
                 networkPlayer = root.AddComponent<NetworkPlayer>();
