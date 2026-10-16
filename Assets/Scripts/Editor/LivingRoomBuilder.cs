@@ -1,4 +1,6 @@
 using OverCleaning.InGame;
+using Unity.Netcode;
+using Unity.Netcode.Components;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -355,12 +357,9 @@ namespace OverCleaning.EditorTools
 
             Box(root, "Rug", new Vector3(0f, 0.005f, 3.2f), new Vector3(4.6f, 0.01f, 3.4f), beige, false);
 
-            Box(root, "Sofa Seat", new Vector3(0f, 0.25f, 5.3f), new Vector3(3f, 0.5f, 1.1f), navy);
-            Box(root, "Sofa Back", new Vector3(0f, 0.75f, 5.78f), new Vector3(3f, 0.7f, 0.25f), navy);
-            Box(root, "Sofa Arm Left", new Vector3(-1.65f, 0.55f, 5.3f), new Vector3(0.3f, 0.6f, 1.1f), navy);
-            Box(root, "Sofa Arm Right", new Vector3(1.65f, 0.55f, 5.3f), new Vector3(0.3f, 0.6f, 1.1f), navy);
-            Box(root, "Cushion Left", new Vector3(-0.7f, 0.59f, 5.45f), new Vector3(0.55f, 0.18f, 0.5f), yellow, false);
-            Box(root, "Cushion Right", new Vector3(0.7f, 0.59f, 5.45f), new Vector3(0.55f, 0.18f, 0.5f), coral, false);
+            // 소파는 둘이 함께 들어 옮기는 물건이라 가구 장식과 따로, 지워지지 않는
+            // 네트워크 오브젝트로 만든다.
+            BuildSofa(navy, yellow, coral);
 
             Box(root, "Coffee Table", new Vector3(0f, 0.2f, 3.2f), new Vector3(1.6f, 0.4f, 0.9f), walnut);
 
@@ -369,6 +368,48 @@ namespace OverCleaning.EditorTools
             Box(root, "TV", new Vector3(-2.2f, 1.1f, -0.55f), new Vector3(1.6f, 0.9f, 0.08f), screen, false);
 
             Plant(root, "Living Plant", new Vector3(3f, 0f, 5.5f));
+        }
+
+        /// <summary>
+        /// 둘이 함께 들어 옮기는 소파. 가구 장식과 달리 다시 실행해도 지워지지 않는
+        /// 네트워크 오브젝트로 두고 겉모습만 새로 그린다. 처음 만든 뒤 씬을 저장해야
+        /// 네트워크 식별자가 생겨 동기화된다.
+        /// </summary>
+        private static void BuildSofa(Material navy, Material yellow, Material coral)
+        {
+            GameObject sofa = GameObject.Find("Sofa");
+            if (sofa == null)
+            {
+                sofa = new GameObject("Sofa");
+                sofa.transform.position = new Vector3(0f, 0f, 5.3f);
+                BoxCollider collider = sofa.AddComponent<BoxCollider>();
+                collider.size = new Vector3(3.3f, 1f, 1.2f);
+                collider.center = new Vector3(0f, 0.5f, 0.1f);
+                sofa.AddComponent<NetworkObject>();
+
+                // 자리는 서버가 옮기므로 서버 권한 그대로 두고 크기만 보내지 않는다.
+                NetworkTransform transformSync = sofa.AddComponent<NetworkTransform>();
+                transformSync.SyncScaleX = false;
+                transformSync.SyncScaleY = false;
+                transformSync.SyncScaleZ = false;
+
+                sofa.AddComponent<CoopCarriable>();
+            }
+
+            ClearVisualChildren(sofa.transform);
+            Transform parent = sofa.transform;
+            Shape(parent, "Sofa Seat", PrimitiveType.Cube, new Vector3(0f, 0.25f, 0f),
+                new Vector3(3f, 0.5f, 1.1f), Quaternion.identity, navy);
+            Shape(parent, "Sofa Back", PrimitiveType.Cube, new Vector3(0f, 0.75f, 0.48f),
+                new Vector3(3f, 0.7f, 0.25f), Quaternion.identity, navy);
+            Shape(parent, "Sofa Arm Left", PrimitiveType.Cube, new Vector3(-1.65f, 0.55f, 0f),
+                new Vector3(0.3f, 0.6f, 1.1f), Quaternion.identity, navy);
+            Shape(parent, "Sofa Arm Right", PrimitiveType.Cube, new Vector3(1.65f, 0.55f, 0f),
+                new Vector3(0.3f, 0.6f, 1.1f), Quaternion.identity, navy);
+            Shape(parent, "Cushion Left", PrimitiveType.Cube, new Vector3(-0.7f, 0.59f, 0.15f),
+                new Vector3(0.55f, 0.18f, 0.5f), Quaternion.identity, yellow);
+            Shape(parent, "Cushion Right", PrimitiveType.Cube, new Vector3(0.7f, 0.59f, 0.15f),
+                new Vector3(0.55f, 0.18f, 0.5f), Quaternion.identity, coral);
         }
 
         /// <summary>왼쪽 방. 책장과 안락의자, 스탠드 조명으로 서재 코너를 만든다.</summary>
