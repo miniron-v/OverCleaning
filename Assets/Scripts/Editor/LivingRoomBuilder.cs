@@ -2,6 +2,7 @@ using OverCleaning.InGame;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.Rendering;
 
 namespace OverCleaning.EditorTools
 {
@@ -38,6 +39,7 @@ namespace OverCleaning.EditorTools
             root.SetParent(map.transform, false);
 
             RefineShell();
+            TuneLighting();
             BuildFinishes();
             BuildYard(root);
             BuildLivingRoom(root);
@@ -72,6 +74,37 @@ namespace OverCleaning.EditorTools
             SetTransform("DustFloor_Room1", new Vector3(-7.175f, 0f, 2.675f), new Vector3(7.35f, 7.35f, 1f));
             SetTransform("DustFloor_Room2", new Vector3(0f, 0f, 2.675f), new Vector3(7f, 7.35f, 1f));
             SetTransform("DustFloor_Room3", new Vector3(7.175f, 0f, 2.675f), new Vector3(7.35f, 7.35f, 1f));
+        }
+
+        /// <summary>
+        /// 오후 햇살 느낌으로 빛을 맞춘다. 해를 비스듬히 기울여 가구 그림자가 지게 하고,
+        /// 순백 과노출 대신 따뜻한 색과 낮춘 세기를 쓴다. 바닥에 깔린 먼지가 잘 보이도록
+        /// 주변광은 밝은 중간톤으로 둔다.
+        /// </summary>
+        private static void TuneLighting()
+        {
+            GameObject lightObject = GameObject.Find("Directional Light");
+            if (lightObject != null && lightObject.TryGetComponent(out Light sun))
+            {
+                lightObject.transform.rotation = Quaternion.Euler(55f, -30f, 0f);
+                sun.color = new Color(1f, 0.95f, 0.87f);
+                sun.intensity = 1.2f;
+                sun.shadows = LightShadows.Soft;
+                sun.shadowStrength = 0.72f;
+            }
+
+            RenderSettings.ambientMode = AmbientMode.Trilight;
+            RenderSettings.ambientSkyColor = new Color(0.78f, 0.77f, 0.72f);
+            RenderSettings.ambientEquatorColor = new Color(0.62f, 0.59f, 0.54f);
+            RenderSettings.ambientGroundColor = new Color(0.45f, 0.41f, 0.37f);
+
+            // 잔디 너머 지평선. 검은 허공 대신 옅은 하늘빛을 보여 준다.
+            Camera camera = Camera.main;
+            if (camera != null)
+            {
+                camera.clearFlags = CameraClearFlags.SolidColor;
+                camera.backgroundColor = new Color(0.66f, 0.74f, 0.78f);
+            }
         }
 
         /// <summary>집 둘레의 마당. 잔디와 나무, 덤불로 바깥 허공을 채운다. 전부 장식이다.</summary>
