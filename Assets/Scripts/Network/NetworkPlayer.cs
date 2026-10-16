@@ -44,8 +44,14 @@ namespace OverCleaning.Network
                 ApplyKeyLayout();
                 ApplyActionMap();
                 FollowWithCamera();
+                RegisterSessionPlayerRpc(GameServices.PlayerId ?? string.Empty);
             }
         }
+
+        /// <summary>팅겼을 때 호스트가 세션에서 누구를 뺄지 알 수 있게 한다.</summary>
+        [Rpc(SendTo.Server)]
+        private void RegisterSessionPlayerRpc(string sessionPlayerId) =>
+            GameSession.RegisterClient(OwnerClientId, sessionPlayerId);
 
         /// <summary>따라가는 카메라가 있는 씬(대기방)에서만 자기 캐릭터를 따라가게 한다.</summary>
         private void FollowWithCamera()

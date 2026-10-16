@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using Unity.Netcode;
 using Unity.Services.Multiplayer;
@@ -20,6 +22,12 @@ namespace OverCleaning.Network
 
         public static ISession Current { get; private set; }
 
+        /// <summary>
+        /// 호스트가 Netcode 접속과 세션 참가자를 짝지어 둔다.
+        /// 접속이 끊겨도 세션은 참가자를 스스로 빼지 않으므로 호스트가 이 짝으로 찾아 뺀다.
+        /// </summary>
+        private static readonly Dictionary<ulong, string> _playerIdsByClient = new Dictionary<ulong, string>();
+
         /// <summary>참가에 쓰는 방 코드. 세션이 없으면 빈 문자열이다.</summary>
         public static string Code => Current != null ? Current.Code : string.Empty;
 
@@ -35,6 +43,9 @@ namespace OverCleaning.Network
             }.WithRelayNetwork();
 
             Current = await MultiplayerService.Instance.CreateSessionAsync(options);
+            // 방을 다시 만들어도 한 번만 받도록 먼저 뺀다.
+            NetworkManager.Singleton.OnClientDisconnectCallback -= RemoveDisconnectedPlayer;
+            NetworkManager.Singleton.OnClientDisconnectCallback += RemoveDisconnectedPlayer;
             Debug.Log($"방을 만들었습니다. 코드: {Current.Code}");
             return Current;
         }
@@ -96,12 +107,51 @@ namespace OverCleaning.Network
                 return;
             await Current.LeaveAsync();
             Current = null;
+            _playerIdsByClient.Clear();
         }
 
-        private static System.Collections.Generic.Dictionary<string, PlayerProperty> BuildPlayerProperties(
+        /// <summary>참가자가 접속하면 자기 세션 플레이어 ID를 알려온다. 호스트에서만 불린다.</summary>
+        public static void RegisterClient(ulong clientId, string playerId) => _playerIdsByClient[clientId] = playerId;
+
+        /// <summary>
+        /// 팅긴 참가자를 세션에서 뺀다. 스스로 나간 경우는 이미 빠져 있으므로 건너뛴다.
+        /// </summary>
+        private static async void RemoveDisconnectedPlayer(ulong clientId)
+        {
+            // 호스트 자신이 끊기는 것은 방을 닫는 것이므로 세션 정리는 LeaveAsync에 맡긴다.
+            if (clientId == NetworkManager.ServerClientId)
+                return;
+            if (!_playerIdsByClient.Remove(clientId, out string playerId))
+                return;
+            if (Current == null || !Current.IsHost || !HasPlayer(playerId))
+                return;
+
+            try
+            {
+                await Current.AsHost().RemovePlayerAsync(playerId);
+                Debug.Log($"접속이 끊긴 참가자를 방에서 뺐습니다: {playerId}");
+            }
+            catch (Exception exception)
+            {
+                // 확인하는 사이에 스스로 나갔을 수 있다. 결과는 같으므로 경고만 남긴다.
+                Debug.LogWarning($"참가자를 방에서 빼지 못했습니다: {exception.Message}");
+            }
+        }
+
+        private static bool HasPlayer(string playerId)
+        {
+            foreach (IReadOnlyPlayer player in Current.Players)
+            {
+                if (player.Id == playerId)
+                    return true;
+            }
+            return false;
+        }
+
+        private static Dictionary<string, PlayerProperty> BuildPlayerProperties(
             string nickname)
         {
-            return new System.Collections.Generic.Dictionary<string, PlayerProperty>
+            return new Dictionary<string, PlayerProperty>
             {
                 // 같은 방의 다른 참가자도 읽어야 하므로 공개 범위로 둔다.
                 [NicknameProperty] = new PlayerProperty(nickname, VisibilityPropertyOptions.Member),
