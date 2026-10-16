@@ -46,7 +46,8 @@ namespace OverCleaning.Network
             _leaveButton.onClick.AddListener(() => _ = LeaveAsync());
 
             _session.PlayerJoined += OnPlayerChanged;
-            _session.PlayerLeaving += OnPlayerChanged;
+            // PlayerLeaving은 목록에서 빠지기 전에 불려 나간 사람이 그대로 남는다.
+            _session.PlayerHasLeft += OnPlayerChanged;
             Refresh();
         }
 
@@ -55,7 +56,7 @@ namespace OverCleaning.Network
             if (_session == null)
                 return;
             _session.PlayerJoined -= OnPlayerChanged;
-            _session.PlayerLeaving -= OnPlayerChanged;
+            _session.PlayerHasLeft -= OnPlayerChanged;
         }
 
         private void OnPlayerChanged(string playerId) => Refresh();
