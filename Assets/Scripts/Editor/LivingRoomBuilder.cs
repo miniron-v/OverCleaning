@@ -68,6 +68,11 @@ namespace OverCleaning.EditorTools
             SetTransform("Wall", new Vector3(-10.5f - thickness * 0.5f, 1f, 0f), new Vector3(thickness, 2f, 12.7f));
             SetTransform("Wall (1)", new Vector3(10.5f + thickness * 0.5f, 1f, 0f), new Vector3(thickness, 2f, 12.7f));
 
+            // 파티션: 두꺼운 벽이 가려 주던 끝이 얇은 벽을 뚫고 마당으로 나와 있었다.
+            // 북쪽 벽 안쪽 면까지로 자른다.
+            SetTransform("Partition Left", new Vector3(-3.5f, 1f, 2.5f), new Vector3(0.3f, 2f, 7f));
+            SetTransform("Partition Right", new Vector3(3.5f, 1f, 2.5f), new Vector3(0.3f, 2f, 7f));
+
             // 바닥: 벽 바깥면까지만 깔리게 다듬는다. 두꺼운 벽 밑까지 뻗어 있던 가장자리가
             // 밖에서 흰 테두리처럼 보였다.
             SetTransform("Floor_Corridor", new Vector3(0f, 0f, -3.675f), new Vector3(21.7f, 5.35f, 1f));
@@ -98,12 +103,12 @@ namespace OverCleaning.EditorTools
             RenderSettings.ambientEquatorColor = new Color(0.62f, 0.59f, 0.54f);
             RenderSettings.ambientGroundColor = new Color(0.45f, 0.41f, 0.37f);
 
-            // 잔디 너머 지평선. 검은 허공 대신 옅은 하늘빛을 보여 준다.
+            // 잔디 너머 지평선. 어둡게 깐 마당과 자연스럽게 이어지는 밤 하늘빛이다.
             Camera camera = Camera.main;
             if (camera != null)
             {
                 camera.clearFlags = CameraClearFlags.SolidColor;
-                camera.backgroundColor = new Color(0.66f, 0.74f, 0.78f);
+                camera.backgroundColor = new Color(0.09f, 0.1f, 0.12f);
             }
         }
 
@@ -113,10 +118,12 @@ namespace OverCleaning.EditorTools
             Transform yard = new GameObject("Yard").transform;
             yard.SetParent(root, false);
 
-            Material grass = GetMaterial("Yard Grass", new Color(0.42f, 0.55f, 0.36f));
-            Material trunk = GetMaterial("Tree Trunk", new Color(0.4f, 0.3f, 0.22f));
-            Material leaf = GetMaterial("Tree Leaf", new Color(0.27f, 0.42f, 0.24f));
-            Material stone = GetMaterial("Yard Stone", new Color(0.62f, 0.62f, 0.58f));
+            // 게임에 방해되지 않도록 바깥은 검은 막을 덮은 듯 어두운 색으로 깐다.
+            // 집 안만 밝아 시선이 안으로 모인다.
+            Material grass = GetMaterial("Yard Grass", new Color(0.14f, 0.18f, 0.13f));
+            Material trunk = GetMaterial("Tree Trunk", new Color(0.13f, 0.1f, 0.08f));
+            Material leaf = GetMaterial("Tree Leaf", new Color(0.1f, 0.15f, 0.09f));
+            Material stone = GetMaterial("Yard Stone", new Color(0.2f, 0.2f, 0.19f));
 
             Box(yard, "Grass", new Vector3(0f, -0.06f, 0f), new Vector3(90f, 0.1f, 60f), grass, false);
 
@@ -459,7 +466,10 @@ namespace OverCleaning.EditorTools
             return box;
         }
 
-        /// <summary>색만 다른 단색 머티리얼. 같은 이름이 이미 있으면 그대로 쓴다.</summary>
+        /// <summary>
+        /// 색만 다른 단색 머티리얼. 이미 있으면 색을 새 값으로 맞춘다.
+        /// 색을 고치고 다시 실행해도 그대로 반영되게 하기 위해서다.
+        /// </summary>
         private static Material GetMaterial(string name, Color color)
         {
             if (!AssetDatabase.IsValidFolder(MaterialFolder))
@@ -467,12 +477,12 @@ namespace OverCleaning.EditorTools
 
             string path = $"{MaterialFolder}/{name}.mat";
             Material material = AssetDatabase.LoadAssetAtPath<Material>(path);
-            if (material != null)
-                return material;
-
-            material = new Material(Shader.Find("Universal Render Pipeline/Lit"));
+            if (material == null)
+            {
+                material = new Material(Shader.Find("Universal Render Pipeline/Lit"));
+                AssetDatabase.CreateAsset(material, path);
+            }
             material.SetColor("_BaseColor", color);
-            AssetDatabase.CreateAsset(material, path);
             return material;
         }
     }
