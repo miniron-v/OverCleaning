@@ -6,13 +6,19 @@ namespace OverCleaning.InGame
     /// 캐릭터 모델을 실제로 이동한 방향으로 돌리되, 물건을 들었으면 그 물건 쪽을 본다.
     /// 루트를 돌리면 들고 있는 청소기가 충돌 검사 없이 함께 돌아가므로 모델만 돌린다.
     /// 이동은 위치 변화로, 든 물건은 자식 관계로 읽으므로 둘 다 입력 없이도
-    /// 원격 플레이어가 같은 방향을 본다.
+    /// 원격 플레이어가 같은 방향을 본다. 걷는 동작도 같은 위치 변화로 정한다.
     /// </summary>
     public sealed class PlayerModelFacing : MonoBehaviour
     {
         [SerializeField] private Transform _model;
         [Min(1f)] [SerializeField] private float _turnSpeed = 720f;
 
+        /// <summary>1초에 이만큼(m) 넘게 움직이면 걷는 동작을 한다. 걷는 속도(5)보다 한참 작다.</summary>
+        private const float WalkingSpeed = 0.5f;
+
+        private static readonly int IsWalkingId = Animator.StringToHash("IsWalking");
+
+        private Animator _animator;
         private Vector3 _previousPosition;
 
         /// <summary>
@@ -20,6 +26,11 @@ namespace OverCleaning.InGame
         /// 차 위에서 생기는 위치 변화는 걸은 방향이 아니기 때문이다.
         /// </summary>
         public Transform FacingTarget { get; set; }
+
+        private void Awake()
+        {
+            _animator = _model.GetComponent<Animator>();
+        }
 
         private void OnEnable()
         {
@@ -30,6 +41,10 @@ namespace OverCleaning.InGame
         {
             Vector3 delta = transform.position - _previousPosition;
             _previousPosition = transform.position;
+            bool isWalking = FacingTarget == null &&
+                             Vector3.ProjectOnPlane(delta, Vector3.up).magnitude > WalkingSpeed * Time.deltaTime;
+            if (_animator != null)
+                _animator.SetBool(IsWalkingId, isWalking);
             if (FacingTarget != null)
             {
                 _model.rotation = Quaternion.LookRotation(Vector3.ProjectOnPlane(FacingTarget.forward, Vector3.up), Vector3.up);
