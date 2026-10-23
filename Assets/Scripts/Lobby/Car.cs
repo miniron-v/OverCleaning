@@ -59,8 +59,6 @@ namespace OverCleaning.Lobby
         private void Awake()
         {
             _rigidbody = GetComponent<Rigidbody>();
-            _rigidbody.constraints = RigidbodyConstraints.FreezePositionY |
-                                     RigidbodyConstraints.FreezeRotationX | RigidbodyConstraints.FreezeRotationZ;
             _rigidbody.interpolation = RigidbodyInterpolation.Interpolate;
             _bodyCollider = GetComponentInChildren<Collider>();
         }
@@ -296,8 +294,13 @@ namespace OverCleaning.Lobby
             if (!IsSpawned || !IsOwner)
                 return;
 
+            // 서 있는 동안은 묶어 둔다. 이 화면의 남의 캐릭터는 물리를 맡지 않아 질량이 무한하므로 부딪히면 차를 밀어 버린다.
             Vector2 input = GetDriverInput();
-            if (input.sqrMagnitude < 0.01f)
+            bool isParked = input.sqrMagnitude < 0.01f;
+            _rigidbody.constraints = isParked
+                ? RigidbodyConstraints.FreezeAll
+                : RigidbodyConstraints.FreezePositionY | RigidbodyConstraints.FreezeRotationX | RigidbodyConstraints.FreezeRotationZ;
+            if (isParked)
             {
                 _rigidbody.linearVelocity = Vector3.zero;
                 _rigidbody.angularVelocity = Vector3.zero;
