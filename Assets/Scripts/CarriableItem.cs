@@ -182,7 +182,15 @@ namespace OverCleaning.InGame
             _bodyCollider.enabled = true;
             // 장착만 정해진 자리로 붙인다. 들기는 잡은 자리 그대로 들려 따라온다.
             if (HolderBody != null && _carryMode == CarryMode.Equip)
+            {
+                // 물건이 있던 쪽을 향한 채 든다. 든 사람의 모델이 물건의 방향을 따라 보므로,
+                // 물건 쪽을 바라보면서 집어 드는 모습이 된다.
+                Vector3 towardItem = transform.position - HolderBody.position;
+                towardItem.y = 0f;
+                if (towardItem.sqrMagnitude > 0.000001f)
+                    transform.rotation = Quaternion.LookRotation(towardItem, Vector3.up);
                 transform.localPosition = HeldLocalPosition;
+            }
             if (HolderBody != null && _carryMode == CarryMode.Carry)
             {
                 // 잡는 순간의 간격을 보는 방향 기준으로 기억한다. 몸을 돌리면 간격째로 따라온다.
@@ -292,17 +300,11 @@ namespace OverCleaning.InGame
                 return;
             }
             // 거리는 서버가 다시 확인한다. 안내만 믿으면 늦은 요청이 멀리서 통한다.
+            // 거리만 맞으면 언제나 들 수 있다. 자리가 좁아 물건이 벽에 걸치더라도
+            // 드는 것 자체는 막지 않는다. 돌리기는 AimAt이 알아서 벽 앞에서 멈춘다.
             if (!IsInPickUpRange(holderBody.position))
             {
                 Debug.Log($"너무 멀어 들 수 없습니다({ItemName}).", this);
-                return;
-            }
-            // 장착은 물건이 든 사람 자리로 옮겨 가므로 가는 길을 검사한다. 들어 올리는 동안
-            // 든 사람과 겹치는 것은 당연하므로 장애물로 보지 않는다. 들기는 안 움직이니 안 본다.
-            if (_carryMode == CarryMode.Equip &&
-                !CanPlace(transform.position, holderBody.position, holderBody, true))
-            {
-                Debug.LogWarning($"들 자리가 막혀 있어 들 수 없습니다({ItemName}).", this);
                 return;
             }
             if (!NetworkObject.TrySetParent(player))
@@ -339,7 +341,7 @@ namespace OverCleaning.InGame
             {
                 Vector3 direction = Quaternion.AngleAxis(angle, Vector3.up) * forward;
                 Vector3 destination = holderBody.position + direction * distance;
-                if (CanPlace(holderBody.position, destination, holderBody, false) &&
+                if (CanPlace(holderBody.position, destination, holderBody) &&
                     HasGroundSupport(destination))
                     return destination;
             }
@@ -389,8 +391,7 @@ namespace OverCleaning.InGame
         /// 그대로 쓰면 검사 상자가 바닥을 향해 파고들어 늘 막힌다. 들어 올리고 내리는 것은
         /// 벽을 지나는 것과 상관이 없으므로 수평으로만 본다.
         /// </summary>
-        protected bool CanPlace(Vector3 origin, Vector3 destination, Rigidbody ignoredBody,
-            bool ignoreBodyAtDestination)
+        protected bool CanPlace(Vector3 origin, Vector3 destination, Rigidbody ignoredBody)
         {
             Physics.SyncTransforms();
             Vector3 halfExtents = Vector3.Max(
@@ -405,7 +406,8 @@ namespace OverCleaning.InGame
                 return false;
             for (int index = 0; index < count; index++)
             {
-                if (!IsIgnoredCollider(_overlapBuffer[index], ignoreBodyAtDestination ? ignoredBody : null))
+                // 놓이는 자리에서는 든 사람도 장애물이다. 제 발밑에 내려놓지 않게 한다.
+                if (!IsIgnoredCollider(_overlapBuffer[index], null))
                     return false;
             }
 
