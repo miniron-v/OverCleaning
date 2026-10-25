@@ -51,12 +51,17 @@ namespace OverCleaning.InGame
                 return;
             }
 
-            // 든 물건이 있으면 그쪽을 본다. 장착한 물건은 몸 중심에 붙어 방향이 없으므로
-            // 그때는 이동 방향을 그대로 쓴다.
+            // 든 물건이 있으면 그쪽을 본다. 물건이 보는 방향을 정해 주면(청소기의 실제 방향)
+            // 그 방향을 따르고, 아니면 물건이 놓인 쪽을 본다. 장착한 물건이 몸 중심에 붙어
+            // 방향을 알 수 없을 때만 이동 방향을 그대로 쓴다.
             Vector3 direction = Vector3.zero;
             CarriableItem heldItem = GetComponentInChildren<CarriableItem>();
             if (heldItem != null)
-                direction = heldItem.transform.position - transform.position;
+            {
+                direction = heldItem.HeldFacingDirection;
+                if (direction.sqrMagnitude < 0.000001f)
+                    direction = heldItem.transform.position - transform.position;
+            }
             direction.y = 0f;
             if (direction.sqrMagnitude < 0.000001f)
             {

@@ -74,6 +74,13 @@ namespace OverCleaning.InGame
         /// <summary>들고 있는 동안 든 사람의 이동 속도 배율. 무거운 물건일수록 낮다.</summary>
         public float CarrySpeedMultiplier => _carrySpeedMultiplier;
 
+        /// <summary>
+        /// 들고 있는 동안 든 사람의 모델이 바라볼 방향. 0이면 물건이 방향을 정하지 않아
+        /// 모델은 평소대로 돈다. 물건의 실제 방향을 돌려주면, 물건이 벽에 막혀 못 도는 동안
+        /// 든 사람도 돌지 않고 끌면서 움직이는 모습이 된다.
+        /// </summary>
+        public virtual Vector3 HeldFacingDirection => Vector3.zero;
+
         /// <summary>안내 문구에 쓸 이름. 예: "청소기".</summary>
         protected abstract string ItemName { get; }
 

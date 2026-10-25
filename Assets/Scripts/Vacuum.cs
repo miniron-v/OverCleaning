@@ -67,6 +67,12 @@ namespace OverCleaning.InGame
 
         protected override string ItemName => "청소기";
 
+        /// <summary>
+        /// 든 사람은 청소기가 실제로 향한 쪽을 본다. 벽에 막혀 청소기가 못 돌면
+        /// 사람도 돌지 않으므로, 그대로 움직이면 끌고 가는 모습이 된다.
+        /// </summary>
+        public override Vector3 HeldFacingDirection => transform.forward;
+
         protected override void Awake()
         {
             base.Awake();
