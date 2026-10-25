@@ -32,6 +32,12 @@ namespace OverCleaning.InGame
 
         protected override string ItemName => "빗자루";
 
+        /// <summary>
+        /// 든 사람은 빗자루가 실제로 향한 쪽을 본다. 빗자루가 부드럽게 도는 동안
+        /// 몸도 같이 따라 돌아, 몸만 먼저 홱 돌아 보이지 않는다.
+        /// </summary>
+        public override Vector3 HeldFacingDirection => transform.forward;
+
         private Vector3 SweepPosition => _sweepPoint != null ? _sweepPoint.position : transform.position;
 
         private bool HasLitterInRange =>

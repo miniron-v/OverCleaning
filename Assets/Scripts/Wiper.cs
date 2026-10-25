@@ -28,6 +28,12 @@ namespace OverCleaning.InGame
 
         protected override string ItemName => _itemName;
 
+        /// <summary>
+        /// 든 사람은 걸레가 실제로 향한 쪽을 본다. 걸레가 부드럽게 도는 동안
+        /// 몸도 같이 따라 돌아, 몸만 먼저 홱 돌아 보이지 않는다.
+        /// </summary>
+        public override Vector3 HeldFacingDirection => transform.forward;
+
         private Vector3 WipePosition => _wipePoint != null ? _wipePoint.position : transform.position;
 
         /// <summary>
