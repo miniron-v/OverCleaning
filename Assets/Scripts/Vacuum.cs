@@ -67,6 +67,12 @@ namespace OverCleaning.InGame
 
         protected override string ItemName => "청소기";
 
+        /// <summary>
+        /// 든 사람은 청소기가 실제로 향한 쪽을 본다. 벽에 막혀 청소기가 못 돌면
+        /// 사람도 돌지 않으므로, 그대로 움직이면 끌고 가는 모습이 된다.
+        /// </summary>
+        public override Vector3 HeldFacingDirection => transform.forward;
+
         protected override void Awake()
         {
             base.Awake();
@@ -174,6 +180,22 @@ namespace OverCleaning.InGame
         {
             return IsHeld && StoredDustCount > 0 && _trashCan != null &&
                 _trashCan.CanReceiveDust(HandPosition, HolderBody);
+        }
+
+        /// <summary>쓰레기통 옆에서 꾹 누르면 먼지통을 비운다.</summary>
+        public override bool CanHoldUse => CanEmptyDustBin();
+
+        public override void BeginHoldUse()
+        {
+            // 비우는 동안에는 빨아들이지 않는다. 비우자마자 다시 차는 것을 막는다.
+            SetSuctionPaused(true);
+            RequestBeginEmptying();
+        }
+
+        public override void EndHoldUse()
+        {
+            SetSuctionPaused(false);
+            RequestEndEmptying();
         }
 
         /// <summary>비우기 시작을 서버에 알린다. 든 사람이 키를 누르고 있는 동안만 비워진다.</summary>

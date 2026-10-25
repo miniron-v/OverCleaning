@@ -12,7 +12,12 @@ namespace OverCleaning.InGame
     /// 자리는 서버가 옮긴다. 사람들의 위치는 이미 동기화되므로 서버가 가운데를 재서
     /// NetworkTransform으로 내려보내면 모두 같은 모습을 본다. 한 사람에게 붙이는
     /// CarriableItem과 달리 주인이 없어서 부모도 소유권도 바꾸지 않는다.
+    ///
+    /// 든 동안 잡은 사람은 잡은 자리에 붙는다. 제 캐릭터는 제 기기가 움직이므로,
+    /// 붙드는 것도 각자의 기기가 한다. 자리를 벗어나려 하면 줄에 걸린 것처럼 멈추고,
+    /// 물건이 가운데를 따라오는 만큼씩만 나아가므로 무거운 것을 함께 옮기는 느낌이 된다.
     /// </summary>
+    [DefaultExecutionOrder(100)] // PlayerMovement가 속도를 정한 뒤에 붙드는 보정을 한다.
     public sealed class CoopCarriable : NetworkBehaviour, IInteractable
     {
         [Tooltip("함께 들어야 하는 인원.")]
@@ -25,16 +30,30 @@ namespace OverCleaning.InGame
         [Min(0.1f)] [SerializeField] private float _followSharpness = 6f;
         [Tooltip("안내 문구에 쓸 이름.")]
         [SerializeField] private string _itemName = "소파";
+        [Tooltip("든 동안 잡은 자리에서 벗어날 수 있는 거리. 작을수록 딱 붙는다.")]
+        [Min(0.05f)] [SerializeField] private float _tetherRadius = 0.35f;
 
         /// <summary>잡고 있는 사람들. 서버가 넣고 빼며 모두에게 내려간다.</summary>
         private readonly NetworkList<ulong> _lifterClientIds = new NetworkList<ulong>();
 
         private BoxCollider _bodyCollider;
 
-        /// <summary>서버에서만 쓴다. 내려앉을 높이와, 다 잡힌 순간 가운데에서의 간격.</summary>
+        /// <summary>서버에서만 쓴다. 내려앉을 높이와, 다 잡힌 순간의 자세.</summary>
         private float _restHeight;
-        private Vector3 _carryOffset;
         private bool _carryEngaged;
+
+        /// <summary>
+        /// 서버에서만 쓴다. 잡은 사람들을 잇는 선을 기준 틀로 삼아, 다 잡힌 순간의
+        /// 간격과 각도를 그 틀 안에서 기억한다. 사람들이 선 채로 돌면 틀이 돌고,
+        /// 물건도 간격과 각도를 지킨 채 함께 돈다.
+        /// </summary>
+        private Quaternion _lifterAxisRotation;
+        private Vector3 _carryLocalOffset;
+        private Quaternion _carryLocalRotation;
+
+        /// <summary>이 기기에서만 쓴다. 내 캐릭터가 붙들려 있는지와, 물건 기준 잡은 자리.</summary>
+        private bool _localTethered;
+        private Vector3 _localGrabOffset;
 
         public bool IsFullyLifted => IsSpawned && _lifterClientIds.Count >= _requiredLifters;
 
@@ -147,32 +166,113 @@ namespace OverCleaning.InGame
         }
 
         /// <summary>
-        /// 다 잡힌 순간의 간격을 지키며 잡은 사람들의 가운데를 따라간다.
-        /// 간격을 지키지 않으면 잡는 순간 물건이 가운데로 튀어 온다.
+        /// 다 잡힌 순간의 간격과 각도를 지키며 잡은 사람들의 가운데를 따라간다.
+        /// 간격을 지키지 않으면 잡는 순간 물건이 가운데로 튀어 오고,
+        /// 각도를 지키지 않으면 사람들이 돌아도 물건이 돌지 않는다.
         /// </summary>
         private void FollowLifters()
         {
             Vector3 midpoint = Vector3.zero;
+            Vector3 firstLifter = Vector3.zero;
+            Vector3 lastLifter = Vector3.zero;
             for (int index = 0; index < _lifterClientIds.Count; index++)
             {
                 Rigidbody body = FindPlayerBody(_lifterClientIds[index]);
                 if (body == null)
                     return;
                 midpoint += body.position;
+                if (index == 0)
+                    firstLifter = body.position;
+                lastLifter = body.position;
             }
             midpoint /= _lifterClientIds.Count;
+
+            // 잡은 사람들을 잇는 선이 기준 틀이다. 겹쳐 서서 선이 사라지는 동안은
+            // 마지막 틀을 그대로 써서 물건이 튀지 않게 한다.
+            Vector3 axis = lastLifter - firstLifter;
+            axis.y = 0f;
+            bool hasAxis = axis.sqrMagnitude > 0.0001f;
 
             if (!_carryEngaged)
             {
                 _carryEngaged = true;
-                _carryOffset = transform.position - midpoint;
-                _carryOffset.y = 0f;
+                _lifterAxisRotation = hasAxis
+                    ? Quaternion.LookRotation(axis, Vector3.up)
+                    : Quaternion.identity;
+                Quaternion inverseAxis = Quaternion.Inverse(_lifterAxisRotation);
+                Vector3 offset = transform.position - midpoint;
+                offset.y = 0f;
+                _carryLocalOffset = inverseAxis * offset;
+                _carryLocalRotation = inverseAxis * transform.rotation;
+            }
+            else if (hasAxis)
+            {
+                _lifterAxisRotation = Quaternion.LookRotation(axis, Vector3.up);
             }
 
-            Vector3 target = midpoint + _carryOffset;
+            Vector3 target = midpoint + _lifterAxisRotation * _carryLocalOffset;
             target.y = _restHeight + _liftHeight;
             float alpha = 1f - Mathf.Exp(-_followSharpness * Time.deltaTime);
             transform.position = Vector3.Lerp(transform.position, target, alpha);
+            transform.rotation = Quaternion.Slerp(
+                transform.rotation, _lifterAxisRotation * _carryLocalRotation, alpha);
+        }
+
+        /// <summary>
+        /// 든 동안 내 캐릭터를 잡은 자리에 붙들어 둔다. 잡은 순간의 자리에서 여유 반경을
+        /// 벗어나면 바깥으로 나가는 속도를 지우고 자리로 되돌린다. 물건이 가운데를
+        /// 따라오면 자리도 함께 움직이므로, 미는 만큼 물건과 같이 나아가게 된다.
+        /// </summary>
+        private void FixedUpdate()
+        {
+            bool shouldTether = IsSpawned && IsFullyLifted && IsLocalPlayerLifting;
+            Rigidbody body = shouldTether ? LocalPlayerBody : null;
+            shouldTether &= body != null;
+
+            if (shouldTether != _localTethered)
+            {
+                _localTethered = shouldTether;
+                if (shouldTether)
+                {
+                    // 다 들린 순간의 자리를 물건 기준으로 기억한다. 물건이 돌면 자리도 돈다.
+                    _localGrabOffset = Quaternion.Inverse(transform.rotation) *
+                        (body.position - transform.position);
+                    _localGrabOffset.y = 0f;
+                }
+            }
+
+            if (!_localTethered)
+                return;
+
+            Vector3 anchor = transform.position + transform.rotation * _localGrabOffset;
+            Vector3 offset = body.position - anchor;
+            offset.y = 0f;
+            float distance = offset.magnitude;
+            if (distance <= _tetherRadius)
+                return;
+
+            // 줄에 걸렸다. 바깥으로 나가는 속도 성분만 지워 줄을 따라 도는 것은 그대로 둔다.
+            Vector3 outward = offset / distance;
+            Vector3 velocity = body.linearVelocity;
+            float outwardSpeed = velocity.x * outward.x + velocity.z * outward.z;
+            if (outwardSpeed > 0f)
+                body.linearVelocity = velocity - outward * outwardSpeed;
+
+            Vector3 corrected = anchor + outward * _tetherRadius;
+            corrected.y = body.position.y;
+            body.position = corrected;
+        }
+
+        private static Rigidbody LocalPlayerBody
+        {
+            get
+            {
+                NetworkManager manager = NetworkManager.Singleton;
+                if (manager == null || !manager.IsListening || manager.SpawnManager == null)
+                    return null;
+                NetworkObject player = manager.SpawnManager.GetLocalPlayerObject();
+                return player != null ? player.GetComponent<Rigidbody>() : null;
+            }
         }
 
         private bool IsInHoldRange(Rigidbody body)

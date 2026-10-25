@@ -74,6 +74,30 @@ namespace OverCleaning.InGame
         /// <summary>들고 있는 동안 든 사람의 이동 속도 배율. 무거운 물건일수록 낮다.</summary>
         public float CarrySpeedMultiplier => _carrySpeedMultiplier;
 
+        /// <summary>
+        /// 들고 있는 동안 든 사람의 모델이 바라볼 방향. 0이면 물건이 방향을 정하지 않아
+        /// 모델은 평소대로 돈다. 물건의 실제 방향을 돌려주면, 물건이 벽에 막혀 못 도는 동안
+        /// 든 사람도 돌지 않고 끌면서 움직이는 모습이 된다.
+        /// </summary>
+        public virtual Vector3 HeldFacingDirection => Vector3.zero;
+
+        /// <summary>
+        /// 들기 키를 꾹 눌렀을 때 할 일이 지금 가능한가. 청소기는 쓰레기통 옆에서 비우기,
+        /// 빗자루는 쓰레기 옆에서 쓸어 담기다. 거짓이면 꾹 눌러도 아무 일도 없고,
+        /// 하던 중에 거짓이 되면 그만둔다. 든 사람의 기기에서 ItemCarrier가 살핀다.
+        /// </summary>
+        public virtual bool CanHoldUse => false;
+
+        /// <summary>꾹 누르기가 시작됐다. 든 사람의 기기에서 불린다.</summary>
+        public virtual void BeginHoldUse()
+        {
+        }
+
+        /// <summary>꾹 누르기가 끝났다. 손을 뗐거나 더는 할 수 없게 된 때다.</summary>
+        public virtual void EndHoldUse()
+        {
+        }
+
         /// <summary>안내 문구에 쓸 이름. 예: "청소기".</summary>
         protected abstract string ItemName { get; }
 
@@ -158,7 +182,15 @@ namespace OverCleaning.InGame
             _bodyCollider.enabled = true;
             // 장착만 정해진 자리로 붙인다. 들기는 잡은 자리 그대로 들려 따라온다.
             if (HolderBody != null && _carryMode == CarryMode.Equip)
+            {
+                // 물건이 있던 쪽을 향한 채 든다. 든 사람의 모델이 물건의 방향을 따라 보므로,
+                // 물건 쪽을 바라보면서 집어 드는 모습이 된다.
+                Vector3 towardItem = transform.position - HolderBody.position;
+                towardItem.y = 0f;
+                if (towardItem.sqrMagnitude > 0.000001f)
+                    transform.rotation = Quaternion.LookRotation(towardItem, Vector3.up);
                 transform.localPosition = HeldLocalPosition;
+            }
             if (HolderBody != null && _carryMode == CarryMode.Carry)
             {
                 // 잡는 순간의 간격을 보는 방향 기준으로 기억한다. 몸을 돌리면 간격째로 따라온다.
@@ -268,17 +300,11 @@ namespace OverCleaning.InGame
                 return;
             }
             // 거리는 서버가 다시 확인한다. 안내만 믿으면 늦은 요청이 멀리서 통한다.
+            // 거리만 맞으면 언제나 들 수 있다. 자리가 좁아 물건이 벽에 걸치더라도
+            // 드는 것 자체는 막지 않는다. 돌리기는 AimAt이 알아서 벽 앞에서 멈춘다.
             if (!IsInPickUpRange(holderBody.position))
             {
                 Debug.Log($"너무 멀어 들 수 없습니다({ItemName}).", this);
-                return;
-            }
-            // 장착은 물건이 든 사람 자리로 옮겨 가므로 가는 길을 검사한다. 들어 올리는 동안
-            // 든 사람과 겹치는 것은 당연하므로 장애물로 보지 않는다. 들기는 안 움직이니 안 본다.
-            if (_carryMode == CarryMode.Equip &&
-                !CanPlace(transform.position, holderBody.position, holderBody, true))
-            {
-                Debug.LogWarning($"들 자리가 막혀 있어 들 수 없습니다({ItemName}).", this);
                 return;
             }
             if (!NetworkObject.TrySetParent(player))
@@ -315,7 +341,7 @@ namespace OverCleaning.InGame
             {
                 Vector3 direction = Quaternion.AngleAxis(angle, Vector3.up) * forward;
                 Vector3 destination = holderBody.position + direction * distance;
-                if (CanPlace(holderBody.position, destination, holderBody, false) &&
+                if (CanPlace(holderBody.position, destination, holderBody) &&
                     HasGroundSupport(destination))
                     return destination;
             }
@@ -365,8 +391,7 @@ namespace OverCleaning.InGame
         /// 그대로 쓰면 검사 상자가 바닥을 향해 파고들어 늘 막힌다. 들어 올리고 내리는 것은
         /// 벽을 지나는 것과 상관이 없으므로 수평으로만 본다.
         /// </summary>
-        protected bool CanPlace(Vector3 origin, Vector3 destination, Rigidbody ignoredBody,
-            bool ignoreBodyAtDestination)
+        protected bool CanPlace(Vector3 origin, Vector3 destination, Rigidbody ignoredBody)
         {
             Physics.SyncTransforms();
             Vector3 halfExtents = Vector3.Max(
@@ -381,7 +406,8 @@ namespace OverCleaning.InGame
                 return false;
             for (int index = 0; index < count; index++)
             {
-                if (!IsIgnoredCollider(_overlapBuffer[index], ignoreBodyAtDestination ? ignoredBody : null))
+                // 놓이는 자리에서는 든 사람도 장애물이다. 제 발밑에 내려놓지 않게 한다.
+                if (!IsIgnoredCollider(_overlapBuffer[index], null))
                     return false;
             }
 
