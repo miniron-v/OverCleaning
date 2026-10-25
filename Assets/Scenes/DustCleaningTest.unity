@@ -1779,6 +1779,7 @@ MonoBehaviour:
   _liftHeight: 0.25
   _followSharpness: 6
   _itemName: "\uC18C\uD30C"
+  _tetherRadius: 0.35
 --- !u!114 &227898590
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2977,7 +2978,7 @@ Transform:
   m_GameObject: {fileID: 338721943}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -7.5843143, y: 0, z: 2.5656853}
+  m_LocalPosition: {x: -7.22, y: 0, z: 0.41}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -3369,7 +3370,7 @@ Transform:
   m_GameObject: {fileID: 402644948}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -9.084314, y: 0, z: 1.4343146}
+  m_LocalPosition: {x: 9.1, y: 0, z: 1.4343146}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -4938,7 +4939,7 @@ Transform:
   m_GameObject: {fileID: 766762070}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -11.15, y: 0, z: 2.8}
+  m_LocalPosition: {x: 4.8, y: 0, z: 2.8}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -13118,7 +13119,7 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 4294967295
   _edgeMargin: 0.1
-  _dustCount: 240
+  _dustCount: 100
   _spillHeadroom: 150
   _spilledDustLifetime: 0
   _dustSizeRange: {x: 0.5, y: 1}
