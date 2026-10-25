@@ -78,7 +78,8 @@ namespace OverCleaning.EditorTools
 
         private static void DuplicateVacuum(Vacuum vacuum)
         {
-            if (GameObject.Find("Vacuum 2") != null)
+            // 이미 두 대 이상이면(에디터에서 복제했다면) 더 만들지 않는다.
+            if (Object.FindObjectsByType<Vacuum>(FindObjectsSortMode.None).Length >= 2)
                 return;
 
             GameObject clone = Object.Instantiate(vacuum.gameObject, vacuum.transform.parent);
