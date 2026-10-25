@@ -6,11 +6,11 @@ namespace OverCleaning.InGame
     /// <summary>
     /// 물건을 든 사람 쪽 처리. 물건 로직은 CarriableItem 쪽이 맡고 여기서는 사람이 하는
     /// 일만 한다: 든 물건에 보는 쪽을 알려주고, 들기 키의 짧게/길게를 가려 내려놓기와
-    /// 청소기 비우기를 시킨다.
+    /// 물건마다의 꾹 누르기(청소기 비우기, 빗자루 쓸어 담기)를 시킨다.
     ///
     /// 들기 키 하나로 조작한다. 줍기는 PlayerInteractor가 누르는 순간 처리하고,
-    /// 든 뒤에는 짧게 눌렀다 떼면 내려놓는다. 청소기를 들고 쓰레기통 옆에서 꾹 누르고
-    /// 있으면 누르는 동안 먼지가 쓰레기통으로 빠져나가고, 중간에 떼면 그만큼만 비워진다.
+    /// 든 뒤에는 짧게 눌렀다 떼면 내려놓는다. 꾹 누르면 물건의 꾹 누르기가 가능한 동안
+    /// 이어지고, 중간에 떼면 거기까지만 된다. 무엇을 할지는 물건(CanHoldUse)이 정한다.
     ///
     /// 키 상태는 콜백 대신 매 프레임 읽는다. 키 셔플이 맵을 껐다 켜는 순간
     /// 뗌 콜백이 사라져도 눌림이 남지 않는다.
@@ -21,7 +21,7 @@ namespace OverCleaning.InGame
     {
         private const string InteractActionName = "Interact";
 
-        [Tooltip("이보다 짧게 누르면 내려놓기, 길게 누르고 있으면 먼지통 비우기다(초).")]
+        [Tooltip("이보다 짧게 누르면 내려놓기, 길게 누르고 있으면 물건의 꾹 누르기다(초).")]
         [Min(0.05f)] [SerializeField] private float _holdThreshold = 0.3f;
 
         private PlayerMovement _playerMovement;
@@ -31,7 +31,7 @@ namespace OverCleaning.InGame
         private bool _interactWasPressed;
         private bool _isTrackingPress;
         private float _pressElapsedTime;
-        private bool _isEmptying;
+        private bool _isHoldUsing;
         private int _emptyStartCount;
 
         /// <summary>든 물건이 청소기일 때만 값이 있다. 비우기와 HUD는 청소기만의 것이다.</summary>
@@ -45,7 +45,7 @@ namespace OverCleaning.InGame
 
         private void OnDisable()
         {
-            StopEmptying();
+            StopHoldUse();
             _isTrackingPress = false;
             _interactWasPressed = false;
         }
@@ -90,52 +90,47 @@ namespace OverCleaning.InGame
         {
             if (_heldItem == null)
             {
-                StopEmptying();
+                StopHoldUse();
                 _isTrackingPress = false;
                 return;
             }
 
             if (!isPressed)
             {
-                // 뗐다. 비우던 중이면 거기서 멈출 뿐 내려놓지 않고,
+                // 뗐다. 꾹 누르기를 하던 중이면 거기서 멈출 뿐 내려놓지 않고,
                 // 짧게 눌렀다 뗀 것이면 내려놓는다.
-                bool wasEmptying = _isEmptying;
-                StopEmptying();
+                bool wasHoldUsing = _isHoldUsing;
+                StopHoldUse();
                 _isTrackingPress = false;
-                if (!wasEmptying && _pressElapsedTime < _holdThreshold)
+                if (!wasHoldUsing && _pressElapsedTime < _holdThreshold)
                     _heldItem.RequestDrop();
                 return;
             }
 
             _pressElapsedTime += Time.deltaTime;
-            if (!_isEmptying && _pressElapsedTime >= _holdThreshold &&
-                HeldVacuum != null && HeldVacuum.CanEmptyDustBin())
-                BeginEmptying();
+            if (!_isHoldUsing && _pressElapsedTime >= _holdThreshold && _heldItem.CanHoldUse)
+                BeginHoldUse();
 
-            // 다 비웠거나 쓰레기통에서 멀어지면 멈춘다. 키를 계속 누르고 있어도 된다.
-            if (_isEmptying && (HeldVacuum == null || !HeldVacuum.CanEmptyDustBin()))
-                StopEmptying();
+            // 다 했거나(비우기 끝, 쓰레기 없음) 자리가 어긋나면 멈춘다. 키를 계속 누르고 있어도 된다.
+            if (_isHoldUsing && !_heldItem.CanHoldUse)
+                StopHoldUse();
         }
 
-        private void BeginEmptying()
+        private void BeginHoldUse()
         {
-            _isEmptying = true;
-            _emptyStartCount = HeldVacuum.StoredDustCount;
-            // 비우는 동안에는 빨아들이지 않는다. 비우자마자 다시 차는 것을 막는다.
-            HeldVacuum.SetSuctionPaused(true);
-            HeldVacuum.RequestBeginEmptying();
+            _isHoldUsing = true;
+            // 비우기 진행 표시는 청소기만의 것이라 시작 수량도 청소기일 때만 받아 둔다.
+            _emptyStartCount = HeldVacuum != null ? HeldVacuum.StoredDustCount : 0;
+            _heldItem.BeginHoldUse();
         }
 
-        private void StopEmptying()
+        private void StopHoldUse()
         {
-            if (!_isEmptying)
+            if (!_isHoldUsing)
                 return;
-            _isEmptying = false;
-            if (HeldVacuum != null)
-            {
-                HeldVacuum.SetSuctionPaused(false);
-                HeldVacuum.RequestEndEmptying();
-            }
+            _isHoldUsing = false;
+            if (_heldItem != null)
+                _heldItem.EndHoldUse();
         }
 
         /// <summary>
@@ -156,7 +151,7 @@ namespace OverCleaning.InGame
             if (vacuum == null)
                 return;
 
-            string status = _isEmptying ? "먼지통 비우는 중" :
+            string status = _isHoldUsing ? "먼지통 비우는 중" :
                 vacuum.IsFull ? "먼지통 가득 참 — 비워주세요" :
                 vacuum.IsRunning ? "청소 중" : "작동 정지";
             string hint = vacuum.StoredDustCount == 0 ? "먼지통이 비어 있습니다 (짧게 눌러 내려놓기)" :
@@ -170,7 +165,7 @@ namespace OverCleaning.InGame
 
         private void DrawEmptyingProgress()
         {
-            if (!_isEmptying)
+            if (!_isHoldUsing)
                 return;
             if (_statusCamera == null)
                 _statusCamera = Camera.main;

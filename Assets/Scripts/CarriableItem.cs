@@ -81,6 +81,23 @@ namespace OverCleaning.InGame
         /// </summary>
         public virtual Vector3 HeldFacingDirection => Vector3.zero;
 
+        /// <summary>
+        /// 들기 키를 꾹 눌렀을 때 할 일이 지금 가능한가. 청소기는 쓰레기통 옆에서 비우기,
+        /// 빗자루는 쓰레기 옆에서 쓸어 담기다. 거짓이면 꾹 눌러도 아무 일도 없고,
+        /// 하던 중에 거짓이 되면 그만둔다. 든 사람의 기기에서 ItemCarrier가 살핀다.
+        /// </summary>
+        public virtual bool CanHoldUse => false;
+
+        /// <summary>꾹 누르기가 시작됐다. 든 사람의 기기에서 불린다.</summary>
+        public virtual void BeginHoldUse()
+        {
+        }
+
+        /// <summary>꾹 누르기가 끝났다. 손을 뗐거나 더는 할 수 없게 된 때다.</summary>
+        public virtual void EndHoldUse()
+        {
+        }
+
         /// <summary>안내 문구에 쓸 이름. 예: "청소기".</summary>
         protected abstract string ItemName { get; }
 

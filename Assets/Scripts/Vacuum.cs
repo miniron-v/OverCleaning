@@ -182,6 +182,22 @@ namespace OverCleaning.InGame
                 _trashCan.CanReceiveDust(HandPosition, HolderBody);
         }
 
+        /// <summary>쓰레기통 옆에서 꾹 누르면 먼지통을 비운다.</summary>
+        public override bool CanHoldUse => CanEmptyDustBin();
+
+        public override void BeginHoldUse()
+        {
+            // 비우는 동안에는 빨아들이지 않는다. 비우자마자 다시 차는 것을 막는다.
+            SetSuctionPaused(true);
+            RequestBeginEmptying();
+        }
+
+        public override void EndHoldUse()
+        {
+            SetSuctionPaused(false);
+            RequestEndEmptying();
+        }
+
         /// <summary>비우기 시작을 서버에 알린다. 든 사람이 키를 누르고 있는 동안만 비워진다.</summary>
         public void RequestBeginEmptying()
         {
