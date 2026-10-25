@@ -31,10 +31,18 @@ namespace OverCleaning.InGame
 
         private BoxCollider _bodyCollider;
 
-        /// <summary>서버에서만 쓴다. 내려앉을 높이와, 다 잡힌 순간 가운데에서의 간격.</summary>
+        /// <summary>서버에서만 쓴다. 내려앉을 높이와, 다 잡힌 순간의 자세.</summary>
         private float _restHeight;
-        private Vector3 _carryOffset;
         private bool _carryEngaged;
+
+        /// <summary>
+        /// 서버에서만 쓴다. 잡은 사람들을 잇는 선을 기준 틀로 삼아, 다 잡힌 순간의
+        /// 간격과 각도를 그 틀 안에서 기억한다. 사람들이 선 채로 돌면 틀이 돌고,
+        /// 물건도 간격과 각도를 지킨 채 함께 돈다.
+        /// </summary>
+        private Quaternion _lifterAxisRotation;
+        private Vector3 _carryLocalOffset;
+        private Quaternion _carryLocalRotation;
 
         public bool IsFullyLifted => IsSpawned && _lifterClientIds.Count >= _requiredLifters;
 
@@ -147,32 +155,56 @@ namespace OverCleaning.InGame
         }
 
         /// <summary>
-        /// 다 잡힌 순간의 간격을 지키며 잡은 사람들의 가운데를 따라간다.
-        /// 간격을 지키지 않으면 잡는 순간 물건이 가운데로 튀어 온다.
+        /// 다 잡힌 순간의 간격과 각도를 지키며 잡은 사람들의 가운데를 따라간다.
+        /// 간격을 지키지 않으면 잡는 순간 물건이 가운데로 튀어 오고,
+        /// 각도를 지키지 않으면 사람들이 돌아도 물건이 돌지 않는다.
         /// </summary>
         private void FollowLifters()
         {
             Vector3 midpoint = Vector3.zero;
+            Vector3 firstLifter = Vector3.zero;
+            Vector3 lastLifter = Vector3.zero;
             for (int index = 0; index < _lifterClientIds.Count; index++)
             {
                 Rigidbody body = FindPlayerBody(_lifterClientIds[index]);
                 if (body == null)
                     return;
                 midpoint += body.position;
+                if (index == 0)
+                    firstLifter = body.position;
+                lastLifter = body.position;
             }
             midpoint /= _lifterClientIds.Count;
+
+            // 잡은 사람들을 잇는 선이 기준 틀이다. 겹쳐 서서 선이 사라지는 동안은
+            // 마지막 틀을 그대로 써서 물건이 튀지 않게 한다.
+            Vector3 axis = lastLifter - firstLifter;
+            axis.y = 0f;
+            bool hasAxis = axis.sqrMagnitude > 0.0001f;
 
             if (!_carryEngaged)
             {
                 _carryEngaged = true;
-                _carryOffset = transform.position - midpoint;
-                _carryOffset.y = 0f;
+                _lifterAxisRotation = hasAxis
+                    ? Quaternion.LookRotation(axis, Vector3.up)
+                    : Quaternion.identity;
+                Quaternion inverseAxis = Quaternion.Inverse(_lifterAxisRotation);
+                Vector3 offset = transform.position - midpoint;
+                offset.y = 0f;
+                _carryLocalOffset = inverseAxis * offset;
+                _carryLocalRotation = inverseAxis * transform.rotation;
+            }
+            else if (hasAxis)
+            {
+                _lifterAxisRotation = Quaternion.LookRotation(axis, Vector3.up);
             }
 
-            Vector3 target = midpoint + _carryOffset;
+            Vector3 target = midpoint + _lifterAxisRotation * _carryLocalOffset;
             target.y = _restHeight + _liftHeight;
             float alpha = 1f - Mathf.Exp(-_followSharpness * Time.deltaTime);
             transform.position = Vector3.Lerp(transform.position, target, alpha);
+            transform.rotation = Quaternion.Slerp(
+                transform.rotation, _lifterAxisRotation * _carryLocalRotation, alpha);
         }
 
         private bool IsInHoldRange(Rigidbody body)
