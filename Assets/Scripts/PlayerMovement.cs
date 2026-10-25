@@ -59,7 +59,8 @@ public class PlayerMovement : MonoBehaviour
 
     private void FixedUpdate()
     {
-        Vector2 input = MoveInput;
+        // 시작 전 카운트다운 동안은 모두 제자리에 묶인다.
+        Vector2 input = OverCleaning.InGame.GameRound.IsMovementLocked ? Vector2.zero : MoveInput;
         Vector3 movement = new Vector3(input.x, 0f, input.y) * (_moveSpeed * SpeedMultiplier);
         if (input.sqrMagnitude > 0f)
             FacingDirection = new Vector3(input.x, 0f, input.y).normalized;
