@@ -8842,7 +8842,7 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 4294967295
   _edgeMargin: 0.1
-  _dustCount: 300
+  _dustCount: 240
   _spillHeadroom: 150
   _spilledDustLifetime: 0
   _dustSizeRange: {x: 0.5, y: 1}
