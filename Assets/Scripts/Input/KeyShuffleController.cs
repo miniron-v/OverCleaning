@@ -55,8 +55,14 @@ namespace OverCleaning.Input
         [Tooltip("셔플 후 입력 상태를 초기화할 대상. 비워두면 같은 오브젝트에서 찾는다.")]
         [SerializeField] private PlayerMovement _playerMovement;
 
-        [Tooltip("에디터/개발 빌드 전용. 1키로 셔플, 2키로 복원.")]
+        [Tooltip("에디터/개발 빌드 전용. 1키로 셔플, 2키로 복원. 허용 씬은 NetworkPlayer가 정한다.")]
         [SerializeField] private bool _enableDebugKeys = true;
+
+        /// <summary>
+        /// 디버그 키를 지금 허용할지. 어느 씬에서 허용할지는 NetworkPlayer가 스폰 때 정한다.
+        /// 실제 판에서 복원 키가 통하면 반칙이라, 인스펙터 스위치와 둘 다 켜져야 동작한다.
+        /// </summary>
+        public bool DebugKeysAllowed { get; set; }
 
         private InputActionMap _actionMap;
         private InputAction[] _actions;
@@ -224,7 +230,7 @@ namespace OverCleaning.Input
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
         private void Update()
         {
-            if (!_enableDebugKeys || Keyboard.current == null)
+            if (!_enableDebugKeys || !DebugKeysAllowed || Keyboard.current == null)
                 return;
 
             if (Keyboard.current.digit1Key.wasPressedThisFrame)
