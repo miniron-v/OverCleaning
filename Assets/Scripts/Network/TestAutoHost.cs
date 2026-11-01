@@ -1,4 +1,6 @@
 using System.Collections;
+using System.Net;
+using System.Net.Sockets;
 using Unity.Netcode;
 using Unity.Netcode.Transports.UTP;
 using UnityEngine;
@@ -55,16 +57,24 @@ namespace OverCleaning.Network
                 transport.SetConnectionData("127.0.0.1", port);
 
                 // 빈 포트면 내가 호스트다. 혼자서도 바로 시작된다.
-                if (manager.StartHost())
+                // 비었는지는 우리가 미리 재 본다. NGO에 바인드를 시켰다 실패하면
+                // 전송 실패 에러와 정리 경고가 콘솔에 쏟아지기 때문이다.
+                if (IsPortFree(port))
                 {
-                    if (offset > 0)
-                        Debug.LogWarning($"기본 포트가 묶여 있어 {port}에서 호스트를 시작했습니다.");
-                    yield break;
+                    if (manager.StartHost())
+                    {
+                        if (offset > 0)
+                            Debug.LogWarning($"기본 포트가 묶여 있어 {port}에서 호스트를 시작했습니다.");
+                        yield break;
+                    }
+
+                    // 재는 사이 남이 가로챈 드문 경합이다. 다음 칸으로 넘어간다.
+                    yield return null;
+                    continue;
                 }
 
-                // 누가 잡고 있다. 그 호스트에 참가해 본다. 실패한 호스트 시작의
-                // 뒷정리가 끝나도록 한 프레임 쉬고 시작한다.
-                yield return null;
+                // 누가 잡고 있다. 진짜 호스트라면 참가가 붙고, 지난 플레이가 흘린
+                // 죽은 소켓이라면 시간 안에 붙지 못한다.
                 manager.StartClient();
                 float deadline = Time.realtimeSinceStartup + JoinTimeout;
                 while (Time.realtimeSinceStartup < deadline && !manager.IsConnectedClient)
@@ -80,6 +90,25 @@ namespace OverCleaning.Network
             }
 
             Debug.LogError("호스트도 참가도 하지 못했습니다. 에디터를 재시작하세요.");
+        }
+
+        /// <summary>
+        /// 포트가 비어 있는지 가벼운 소켓으로 묶어 보고 바로 놓아 확인한다.
+        /// 놓은 뒤 NGO가 묶기까지의 찰나에 남이 가로챌 수 있지만, 로컬 테스트에서는
+        /// 그 경합이 사실상 없고 생겨도 다음 칸으로 넘어가면 그만이다.
+        /// </summary>
+        private static bool IsPortFree(ushort port)
+        {
+            try
+            {
+                using var probe = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+                probe.Bind(new IPEndPoint(IPAddress.Loopback, port));
+                return true;
+            }
+            catch (SocketException)
+            {
+                return false;
+            }
         }
     }
 }
