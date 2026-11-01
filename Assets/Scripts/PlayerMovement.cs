@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -13,14 +14,42 @@ public class PlayerMovement : MonoBehaviour
     /// <summary>이동 속도 배율. 무거운 물건을 들면 ItemCarrier가 낮춰 준다.</summary>
     public float SpeedMultiplier { get; set; } = 1f;
 
-    /// <summary>소파를 드는 동안처럼 제자리에 묶였는지. 건 쪽이 책임지고 푼다.</summary>
-    public bool MovementLocked { get; set; }
-
     /// <summary>함께 드는 물건이 거는 속도 배율. 든 물건 배율과 별개로 곱해진다.</summary>
     public float CoopSpeedMultiplier { get; set; } = 1f;
 
     // 방향별 개별 액션 입력. 키 셔플이 이 액션들의 바인딩을 재배치해도 이동 로직은 그대로다.
     private bool _up, _down, _left, _right;
+
+    /// <summary>이동을 막고 있는 이유들. 하나라도 남아 있으면 걷지 못한다.</summary>
+    private readonly HashSet<object> _locks = new HashSet<object>();
+
+    /// <summary>
+    /// 걷기가 막혀 있는지. 막힌 동안은 몸의 속도를 건드리지 않아, 기절해 튕겨나는 속도나 좌석에 붙는 위치를 덮어쓰지 않는다.
+    /// 입력(MoveInput)은 막혀도 계속 갱신된다.
+    /// </summary>
+    public bool IsLocked => _locks.Count > 0;
+
+    /// <summary>
+    /// source 말고 다른 이유로도 막혀 있는지. 차는 운전자를 자기가 묶어 두므로, 그 밖의 이유(기절, 단계 선택 등)로
+    /// 운전자가 묶였을 때만 차도 멈춰야 한다.
+    /// </summary>
+    public bool IsLockedExcept(object source) => _locks.Count > (_locks.Contains(source) ? 1 : 0);
+
+    /// <summary>
+    /// 이유(source)마다 따로 걷기를 막고 푼다. 기절, 차, 의자, 단계 선택이 서로의 잠금을 풀어 버리지 않게 한다.
+    /// 처음 막힐 때 걷던 속도를 멈춘다. 튕겨내려면 막은 뒤에 속도를 준다.
+    /// </summary>
+    public void SetLocked(object source, bool isLocked)
+    {
+        bool wasLocked = IsLocked;
+        if (isLocked)
+            _locks.Add(source);
+        else
+            _locks.Remove(source);
+
+        if (!wasLocked && IsLocked && !_rigidbody.isKinematic)
+            _rigidbody.linearVelocity = new Vector3(0f, _rigidbody.linearVelocity.y, 0f);
+    }
 
     private void Awake()
     {
@@ -46,7 +75,7 @@ public class PlayerMovement : MonoBehaviour
     }
 
     /// <summary>
-    /// 눌린 방향으로 만든 입력. 차를 운전할 때도 이 값을 쓰므로, 이 컴포넌트가 꺼져 있어도 갱신된다.
+    /// 눌린 방향으로 만든 입력. 차를 운전할 때도 이 값을 쓰므로, 걷기가 막혀 있어도 갱신된다.
     /// </summary>
     public Vector2 MoveInput
     {
@@ -65,10 +94,11 @@ public class PlayerMovement : MonoBehaviour
 
     private void FixedUpdate()
     {
-        // 시작 전 카운트다운이나 소파를 드는 동안은 제자리에 묶인다.
-        Vector2 input = MovementLocked || OverCleaning.InGame.GameRound.IsMovementLocked
-            ? Vector2.zero
-            : MoveInput;
+        if (IsLocked)
+            return;
+
+        // 시작 전 카운트다운 동안은 모두 제자리에 묶인다.
+        Vector2 input = OverCleaning.InGame.GameRound.IsMovementLocked ? Vector2.zero : MoveInput;
         Vector3 movement = new Vector3(input.x, 0f, input.y) *
             (_moveSpeed * SpeedMultiplier * CoopSpeedMultiplier);
         if (input.sqrMagnitude > 0f)

@@ -284,7 +284,8 @@ namespace OverCleaning.InGame
                 return;
 
             _localLifting = lifting;
-            movement.MovementLocked = lifting && !IsFullyLifted;
+            // 잠금은 기절·차와 같은 이유별 잠금을 쓴다. 서로의 잠금을 풀지 않는다.
+            movement.SetLocked(this, lifting && !IsFullyLifted);
             movement.CoopSpeedMultiplier = lifting && IsFullyLifted ? _carrySpeedMultiplier : 1f;
             if (body.TryGetComponent(out PlayerModelFacing facing))
                 facing.LookAtTarget = lifting ? transform : null;
@@ -300,7 +301,7 @@ namespace OverCleaning.InGame
             PlayerMovement movement = body != null ? body.GetComponent<PlayerMovement>() : null;
             if (movement == null)
                 return;
-            movement.MovementLocked = false;
+            movement.SetLocked(this, false);
             movement.CoopSpeedMultiplier = 1f;
             if (body.TryGetComponent(out PlayerModelFacing facing))
                 facing.LookAtTarget = null;
