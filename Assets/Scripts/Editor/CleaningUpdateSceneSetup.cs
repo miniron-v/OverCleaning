@@ -294,25 +294,30 @@ namespace OverCleaning.EditorTools
             Material pane = EnsureTransparentMaterial("WindowPane", new Color(0.6f, 0.8f, 0.95f, 0.35f));
             Material windowStain = EnsureTransparentMaterial("WindowStain", new Color(0.35f, 0.3f, 0.2f, 0.85f));
 
-            List<BoxCollider> walls = FindLargeWalls(3);
-            for (int index = 0; index < walls.Count; index++)
+            // 게임 카메라는 남쪽 상공에서 북쪽을 본다. 남쪽을 향한 면만 화면에 보이므로
+            // 창문은 모두 북쪽 벽의 안쪽 면에 일렬로 단다.
+            BoxCollider northWall = FindNorthWall();
+            if (northWall == null)
+            {
+                Debug.LogWarning("창문을 붙일 북쪽 벽을 찾지 못했습니다.");
+                return;
+            }
+
+            const int windowCount = 3;
+            Bounds wallBounds = northWall.bounds;
+            float z = wallBounds.min.z - 0.02f;
+            for (int index = 0; index < windowCount; index++)
             {
                 // 이미 있는 창문은 건너뛴다. 다시 돌려도 늘어난 수만큼만 더 생긴다.
                 if (GameObject.Find($"Window {index + 1}") != null)
                     continue;
 
-                BoxCollider wall = walls[index];
-                Bounds bounds = wall.bounds;
-                // 벽의 얇은 축이 법선이다. 안쪽(맵 중심 쪽) 면에 창문을 붙인다.
-                Vector3 normal = bounds.size.x < bounds.size.z ? Vector3.right : Vector3.forward;
-                float side = Vector3.Dot(mapBounds.center - bounds.center, normal) >= 0f ? 1f : -1f;
-                normal *= side;
-                Vector3 surface = bounds.center + normal * (Vector3.Scale(bounds.extents, normal).magnitude + 0.02f);
-                surface.y = 1.4f;
+                float x = Mathf.Lerp(wallBounds.min.x + 1.5f, wallBounds.max.x - 1.5f,
+                    windowCount > 1 ? (float)index / (windowCount - 1) : 0.5f);
 
                 var window = new GameObject($"Window {index + 1}");
-                window.transform.position = surface;
-                window.transform.rotation = Quaternion.LookRotation(-normal, Vector3.up);
+                window.transform.position = new Vector3(x, 1.4f, z);
+                window.transform.rotation = Quaternion.identity;
 
                 GameObject paneQuad = GameObject.CreatePrimitive(PrimitiveType.Quad);
                 paneQuad.name = "Pane";
@@ -422,23 +427,24 @@ namespace OverCleaning.EditorTools
             return bounds;
         }
 
-        /// <summary>이름이 Wall로 시작하는 Collider 중 면적이 큰 것부터 돌려준다.</summary>
-        private static List<BoxCollider> FindLargeWalls(int count)
+        /// <summary>
+        /// 북쪽 벽을 찾는다. 이름이 Wall로 시작하는 동서로 긴 Collider 중 가장 북쪽 것.
+        /// 카메라가 남쪽에서 보므로 이 벽의 안쪽 면만 창문이 보이는 자리다.
+        /// </summary>
+        private static BoxCollider FindNorthWall()
         {
-            var walls = new List<BoxCollider>();
+            BoxCollider northWall = null;
             foreach (BoxCollider collider in Object.FindObjectsByType<BoxCollider>(FindObjectsSortMode.None))
             {
-                if (collider.name.StartsWith("Wall") && collider.bounds.size.y > 1f)
-                    walls.Add(collider);
+                if (!collider.name.StartsWith("Wall") || collider.bounds.size.y <= 1f)
+                    continue;
+                if (collider.bounds.size.x <= collider.bounds.size.z)
+                    continue;
+                if (northWall == null || collider.bounds.center.z > northWall.bounds.center.z)
+                    northWall = collider;
             }
 
-            walls.Sort((left, right) =>
-                (right.bounds.size.x + right.bounds.size.z).CompareTo(left.bounds.size.x + left.bounds.size.z));
-            if (walls.Count > count)
-                walls.RemoveRange(count, walls.Count - count);
-            if (walls.Count == 0)
-                Debug.LogWarning("창문을 붙일 벽을 찾지 못했습니다.");
-            return walls;
+            return northWall;
         }
 
         /// <summary>그 자리가 다른 Collider와 겹치는가. 바닥과 자기 자신은 빼고 본다.</summary>
