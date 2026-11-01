@@ -31,8 +31,15 @@ namespace OverCleaning.Network
             }
 
             // 스폰은 서버만 한다. 참가자는 서버가 만든 것을 받기만 한다.
-            if (!_manager.IsServer)
-                yield break;
+            // 호스트가 씬 시작보다 늦게 뜰 수 있으므로(테스트 씬의 포트 사다리처럼
+            // 빈 포트를 찾는 동안) 포기하지 않고 서버가 되기를 기다린다.
+            // 그 사이 참가자로 붙었다면 스폰은 호스트의 몫이니 그대로 빠진다.
+            while (!_manager.IsServer)
+            {
+                if (_manager.IsConnectedClient)
+                    yield break;
+                yield return null;
+            }
 
             // 이전 씬의 플레이어가 정리되기를 한 프레임 기다린다.
             // 아직 남아 있으면 이미 있는 것으로 보고 새로 만들지 않는다.
