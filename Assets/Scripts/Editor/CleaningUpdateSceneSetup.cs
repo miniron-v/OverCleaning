@@ -56,14 +56,17 @@ namespace OverCleaning.EditorTools
             CreateTools(vacuum, dustField, grimeField);
 
             TrashCan trashCan = Object.FindFirstObjectByType<TrashCan>();
-            DustClump dustClump = EnsureDustClump(vacuum, trashCan);
+            DustClump[] dustClumps = EnsureDustClumps(vacuum, trashCan);
             Broom broom = Object.FindFirstObjectByType<Broom>();
             if (broom != null)
-                SetReference(broom, "_dustClump", dustClump);
+                SetReferenceArray(broom, "_dustClumps", dustClumps);
 
             var round = new SerializedObject(gameRound);
             round.FindProperty("_grimeField").objectReferenceValue = grimeField;
-            round.FindProperty("_dustClump").objectReferenceValue = dustClump;
+            SerializedProperty clumpArray = round.FindProperty("_dustClumps");
+            clumpArray.arraySize = dustClumps.Length;
+            for (int index = 0; index < dustClumps.Length; index++)
+                clumpArray.GetArrayElementAtIndex(index).objectReferenceValue = dustClumps[index];
             round.ApplyModifiedPropertiesWithoutUndo();
 
             RefreshNetworkObjectHashes();
@@ -156,41 +159,62 @@ namespace OverCleaning.EditorTools
             }
         }
 
+        private const int DustClumpCount = 4;
+
         /// <summary>
-        /// 빗자루로 쓸어 모은 먼지가 뭉치는 자리를 만든다. 비어 있으면 보이지 않으므로
-        /// 아무 자리에나 두면 되고, 쓸기 시작하면 쓸던 자리로 끌려간다.
+        /// 빗자루로 쓸어 모은 먼지가 뭉칠 자리들을 만든다. 비어 있으면 보이지 않으므로
+        /// 아무 자리에나 두면 되고, 쓸기 시작하면 쓸던 자리 앞에 깔린다.
         /// </summary>
-        private static DustClump EnsureDustClump(Vacuum vacuum, TrashCan trashCan)
+        private static DustClump[] EnsureDustClumps(Vacuum vacuum, TrashCan trashCan)
         {
-            DustClump existing = Object.FindFirstObjectByType<DustClump>();
-            if (existing != null)
-                return existing;
+            // 예전 단일 뭉치는 1번으로 이름을 바꿔 소급한다.
+            GameObject legacy = GameObject.Find("Dust Clump");
+            if (legacy != null)
+                legacy.name = "Dust Clump 1";
 
             Material body = EnsureOpaqueMaterial("DustClump", new Color(0.35f, 0.28f, 0.2f));
-            GameObject root = CreateToolRoot("Dust Clump", vacuum,
-                new Vector3(0.6f, 0.6f, 0.6f), new Vector3(0f, 0.3f, 0f));
-            GameObject ball = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-            ball.name = "Clump Ball";
-            Object.DestroyImmediate(ball.GetComponent<Collider>());
-            ball.transform.SetParent(root.transform, false);
-            ball.transform.localScale = Vector3.one * 0.25f;
-            ball.GetComponent<Renderer>().sharedMaterial = body;
-            ball.SetActive(false);
+            var clumps = new DustClump[DustClumpCount];
+            for (int index = 0; index < DustClumpCount; index++)
+            {
+                string name = $"Dust Clump {index + 1}";
+                GameObject existing = GameObject.Find(name);
+                if (existing != null)
+                {
+                    clumps[index] = existing.GetComponent<DustClump>();
+                    continue;
+                }
 
-            var clump = root.AddComponent<DustClump>();
-            var serialized = new SerializedObject(clump);
-            serialized.FindProperty("_trashCan").objectReferenceValue = trashCan;
-            serialized.FindProperty("_ball").objectReferenceValue = ball.transform;
-            serialized.FindProperty("_carrySpeedMultiplier").floatValue = 0.8f;
-            serialized.ApplyModifiedPropertiesWithoutUndo();
-            root.transform.position = vacuum.transform.position + new Vector3(0f, 0f, -1.5f);
-            return clump;
+                GameObject root = CreateToolRoot(name, vacuum,
+                    new Vector3(0.6f, 0.6f, 0.6f), new Vector3(0f, 0.3f, 0f));
+                GameObject ball = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                ball.name = "Clump Ball";
+                Object.DestroyImmediate(ball.GetComponent<Collider>());
+                ball.transform.SetParent(root.transform, false);
+                ball.transform.localScale = Vector3.one * 0.25f;
+                ball.GetComponent<Renderer>().sharedMaterial = body;
+                ball.SetActive(false);
+
+                var clump = root.AddComponent<DustClump>();
+                var serialized = new SerializedObject(clump);
+                serialized.FindProperty("_trashCan").objectReferenceValue = trashCan;
+                serialized.FindProperty("_ball").objectReferenceValue = ball.transform;
+                serialized.FindProperty("_carrySpeedMultiplier").floatValue = 0.8f;
+                serialized.ApplyModifiedPropertiesWithoutUndo();
+                root.transform.position =
+                    vacuum.transform.position + new Vector3(index * 0.8f, 0f, -1.5f);
+                clumps[index] = clump;
+            }
+
+            return clumps;
         }
 
-        private static void SetReference(Component component, string property, Object value)
+        private static void SetReferenceArray(Component component, string property, Object[] values)
         {
             var serialized = new SerializedObject(component);
-            serialized.FindProperty(property).objectReferenceValue = value;
+            SerializedProperty array = serialized.FindProperty(property);
+            array.arraySize = values.Length;
+            for (int index = 0; index < values.Length; index++)
+                array.GetArrayElementAtIndex(index).objectReferenceValue = values[index];
             serialized.ApplyModifiedPropertiesWithoutUndo();
         }
 

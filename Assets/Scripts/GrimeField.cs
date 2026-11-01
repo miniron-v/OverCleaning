@@ -88,15 +88,24 @@ namespace OverCleaning.InGame
                 CreateSparkleSystem();
 
             var emitParams = new ParticleSystem.EmitParams();
-            for (int index = 0; index < 14; index++)
+
+            // 가운데에서 큰 섬광이 한 번 번쩍이고,
+            emitParams.position = position;
+            emitParams.velocity = Vector3.up * 0.2f;
+            emitParams.startSize = 0.7f;
+            emitParams.startLifetime = 0.3f;
+            emitParams.startColor = Color.white;
+            _sparkleSystem.Emit(emitParams, 1);
+
+            // 잔 반짝이들이 위로 퍼진다. 연출일 뿐이라 기기마다 모양이 달라도 된다.
+            for (int index = 0; index < 22; index++)
             {
-                // 위쪽으로 퍼지며 반짝인다. 연출일 뿐이라 기기마다 모양이 달라도 된다.
                 Vector3 direction = (Random.onUnitSphere + Vector3.up).normalized;
                 emitParams.position = position;
-                emitParams.velocity = direction * Random.Range(0.6f, 1.4f);
-                emitParams.startSize = Random.Range(0.1f, 0.2f);
-                emitParams.startLifetime = Random.Range(0.35f, 0.65f);
-                emitParams.startColor = new Color(1f, 0.95f, 0.55f);
+                emitParams.velocity = direction * Random.Range(0.8f, 1.9f);
+                emitParams.startSize = Random.Range(0.16f, 0.3f);
+                emitParams.startLifetime = Random.Range(0.55f, 0.95f);
+                emitParams.startColor = new Color(1f, 0.97f, 0.6f);
                 _sparkleSystem.Emit(emitParams, 1);
             }
 

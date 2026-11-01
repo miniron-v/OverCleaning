@@ -1987,7 +1987,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::OverCleaning.InGame.GrimeSpot
   _kind: 1
-  _wipesToClean: 5
+  _wipesToClean: 8
   _renderer: {fileID: 257219363}
 --- !u!23 &257219363
 MeshRenderer:
@@ -4274,7 +4274,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::OverCleaning.InGame.GrimeSpot
   _kind: 0
-  _wipesToClean: 5
+  _wipesToClean: 8
   _renderer: {fileID: 716443427}
 --- !u!23 &716443427
 MeshRenderer:
@@ -5501,7 +5501,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::OverCleaning.InGame.GrimeSpot
   _kind: 1
-  _wipesToClean: 5
+  _wipesToClean: 8
   _renderer: {fileID: 964055920}
 --- !u!23 &964055920
 MeshRenderer:
@@ -7561,7 +7561,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::OverCleaning.InGame.GrimeSpot
   _kind: 1
-  _wipesToClean: 5
+  _wipesToClean: 8
   _renderer: {fileID: 1314850529}
 --- !u!23 &1314850529
 MeshRenderer:
@@ -7904,7 +7904,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::OverCleaning.InGame.GrimeSpot
   _kind: 1
-  _wipesToClean: 5
+  _wipesToClean: 8
   _renderer: {fileID: 1363029100}
 --- !u!23 &1363029100
 MeshRenderer:
@@ -8010,7 +8010,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::OverCleaning.InGame.GrimeSpot
   _kind: 0
-  _wipesToClean: 5
+  _wipesToClean: 8
   _renderer: {fileID: 1387406404}
 --- !u!23 &1387406404
 MeshRenderer:
@@ -9563,7 +9563,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::OverCleaning.InGame.GrimeSpot
   _kind: 0
-  _wipesToClean: 5
+  _wipesToClean: 8
   _renderer: {fileID: 1655522181}
 --- !u!23 &1655522181
 MeshRenderer:
@@ -11192,7 +11192,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::OverCleaning.InGame.GrimeSpot
   _kind: 1
-  _wipesToClean: 5
+  _wipesToClean: 8
   _renderer: {fileID: 1937583303}
 --- !u!23 &1937583303
 MeshRenderer:
@@ -12049,7 +12049,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::OverCleaning.InGame.GrimeSpot
   _kind: 0
-  _wipesToClean: 5
+  _wipesToClean: 8
   _renderer: {fileID: 2073458927}
 --- !u!23 &2073458927
 MeshRenderer:
@@ -12357,7 +12357,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::OverCleaning.InGame.GrimeSpot
   _kind: 1
-  _wipesToClean: 5
+  _wipesToClean: 8
   _renderer: {fileID: 2099511715}
 --- !u!23 &2099511715
 MeshRenderer:

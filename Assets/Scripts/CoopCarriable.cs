@@ -13,11 +13,9 @@ namespace OverCleaning.InGame
     /// NetworkTransform으로 내려보내면 모두 같은 모습을 본다. 한 사람에게 붙이는
     /// CarriableItem과 달리 주인이 없어서 부모도 소유권도 바꾸지 않는다.
     ///
-    /// 든 동안 잡은 사람은 잡은 자리에 붙는다. 제 캐릭터는 제 기기가 움직이므로,
-    /// 붙드는 것도 각자의 기기가 한다. 자리를 벗어나려 하면 줄에 걸린 것처럼 멈추고,
-    /// 물건이 가운데를 따라오는 만큼씩만 나아가므로 무거운 것을 함께 옮기는 느낌이 된다.
+    /// 잡은 사람은 잡는 동안 제자리에 묶인다. 제 캐릭터는 제 기기가 움직이므로
+    /// 묶는 것도 각자의 기기가 한다. 놓으면 바로 풀린다.
     /// </summary>
-    [DefaultExecutionOrder(100)] // PlayerMovement가 속도를 정한 뒤에 붙드는 보정을 한다.
     public sealed class CoopCarriable : NetworkBehaviour, IInteractable
     {
         [Tooltip("함께 들어야 하는 인원.")]
@@ -30,8 +28,6 @@ namespace OverCleaning.InGame
         [Min(0.1f)] [SerializeField] private float _followSharpness = 6f;
         [Tooltip("안내 문구에 쓸 이름.")]
         [SerializeField] private string _itemName = "소파";
-        [Tooltip("든 동안 잡은 자리에서 벗어날 수 있는 거리. 작을수록 딱 붙는다.")]
-        [Min(0.05f)] [SerializeField] private float _tetherRadius = 0.35f;
         [Tooltip("일부만 잡았을 때 잡은 쪽이 들리는 각도(도). 자리는 그대로고 기울기만 바뀐다.")]
         [Min(0f)] [SerializeField] private float _partialTiltAngle = 7f;
 
@@ -54,9 +50,8 @@ namespace OverCleaning.InGame
         private Vector3 _carryLocalOffset;
         private Quaternion _carryLocalRotation;
 
-        /// <summary>이 기기에서만 쓴다. 내 캐릭터가 붙들려 있는지와, 물건 기준 잡은 자리.</summary>
-        private bool _localTethered;
-        private Vector3 _localGrabOffset;
+        /// <summary>이 기기에서만 쓴다. 내 캐릭터를 제자리에 묶어 두었는지.</summary>
+        private bool _localLocked;
 
         public bool IsFullyLifted => IsSpawned && _lifterClientIds.Count >= _requiredLifters;
 
@@ -252,7 +247,9 @@ namespace OverCleaning.InGame
                 Vector3 offset = transform.position - midpoint;
                 offset.y = 0f;
                 _carryLocalOffset = inverseAxis * offset;
-                _carryLocalRotation = inverseAxis * transform.rotation;
+                // 일부만 잡아 기울어 있던 자세가 아니라 반듯한 제 자세 기준으로 든다.
+                // 다 잡히면 기운 채 올라가지 않고 수평으로 펴지며 떠오른다.
+                _carryLocalRotation = inverseAxis * _restRotation;
             }
             else if (hasAxis)
             {
@@ -268,48 +265,41 @@ namespace OverCleaning.InGame
         }
 
         /// <summary>
-        /// 든 동안 내 캐릭터를 잡은 자리에 붙들어 둔다. 잡은 순간의 자리에서 여유 반경을
-        /// 벗어나면 바깥으로 나가는 속도를 지우고 자리로 되돌린다. 물건이 가운데를
-        /// 따라오면 자리도 함께 움직이므로, 미는 만큼 물건과 같이 나아가게 된다.
+        /// 잡는 동안 내 캐릭터를 제자리에 묶는다. 들어 올리는 물건이라 들고 걷지 않는다.
+        /// 놓거나 잡기가 풀리면(밀려남, 끊김 포함) 바로 풀어 준다.
         /// </summary>
         private void FixedUpdate()
         {
-            bool shouldTether = IsSpawned && IsFullyLifted && IsLocalPlayerLifting;
-            Rigidbody body = shouldTether ? LocalPlayerBody : null;
-            shouldTether &= body != null;
+            bool shouldLock = IsSpawned && IsLocalPlayerLifting;
+            if (shouldLock == _localLocked)
+                return;
 
-            if (shouldTether != _localTethered)
+            PlayerMovement movement = LocalPlayerMovement;
+            if (movement == null)
+                return;
+            _localLocked = shouldLock;
+            movement.MovementLocked = shouldLock;
+        }
+
+        public override void OnNetworkDespawn()
+        {
+            // 판이 끝나며 사라져도 묶인 채 남지 않게 풀어 둔다.
+            if (_localLocked)
             {
-                _localTethered = shouldTether;
-                if (shouldTether)
-                {
-                    // 다 들린 순간의 자리를 물건 기준으로 기억한다. 물건이 돌면 자리도 돈다.
-                    _localGrabOffset = Quaternion.Inverse(transform.rotation) *
-                        (body.position - transform.position);
-                    _localGrabOffset.y = 0f;
-                }
+                PlayerMovement movement = LocalPlayerMovement;
+                if (movement != null)
+                    movement.MovementLocked = false;
+                _localLocked = false;
             }
+        }
 
-            if (!_localTethered)
-                return;
-
-            Vector3 anchor = transform.position + transform.rotation * _localGrabOffset;
-            Vector3 offset = body.position - anchor;
-            offset.y = 0f;
-            float distance = offset.magnitude;
-            if (distance <= _tetherRadius)
-                return;
-
-            // 줄에 걸렸다. 바깥으로 나가는 속도 성분만 지워 줄을 따라 도는 것은 그대로 둔다.
-            Vector3 outward = offset / distance;
-            Vector3 velocity = body.linearVelocity;
-            float outwardSpeed = velocity.x * outward.x + velocity.z * outward.z;
-            if (outwardSpeed > 0f)
-                body.linearVelocity = velocity - outward * outwardSpeed;
-
-            Vector3 corrected = anchor + outward * _tetherRadius;
-            corrected.y = body.position.y;
-            body.position = corrected;
+        private static PlayerMovement LocalPlayerMovement
+        {
+            get
+            {
+                Rigidbody body = LocalPlayerBody;
+                return body != null ? body.GetComponent<PlayerMovement>() : null;
+            }
         }
 
         private static Rigidbody LocalPlayerBody

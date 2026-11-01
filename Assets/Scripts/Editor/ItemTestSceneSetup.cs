@@ -232,15 +232,41 @@ namespace OverCleaning.EditorTools
             CopyFromStage(stage, scene, "Broom", new Vector3(28f, 0f, 6f),
                 copy => Rewire(copy.GetComponent<Broom>(), "_dustField", dustField));
             CopyFromStage(stage, scene, "Sofa", new Vector3(36f, 0f, 7f), null);
-            // 뭉친 먼지는 빗자루 구역에 둔다. 이 씬의 쓰레기통으로 쏟도록 다시 잇는다.
-            CopyFromStage(stage, scene, "Dust Clump", new Vector3(30f, 0f, 7f),
-                copy => Rewire(copy.GetComponent<DustClump>(), "_trashCan", FindInScene<TrashCan>(scene)));
 
-            // 빗자루와 뭉치를 잇는다. 스테이지 씬이 함께 열려 있으므로 이 씬의 것만 찾는다.
+            // 예전 단일 뭉치는 1번으로 이름을 바꿔 소급한다.
+            foreach (GameObject root in scene.GetRootGameObjects())
+            {
+                if (root.name == "Dust Clump")
+                    root.name = "Dust Clump 1";
+            }
+
+            // 뭉친 먼지들은 빗자루 구역에 둔다. 이 씬의 쓰레기통으로 쏟도록 다시 잇는다.
+            for (int index = 0; index < 4; index++)
+            {
+                CopyFromStage(stage, scene, $"Dust Clump {index + 1}",
+                    new Vector3(29f + index * 0.8f, 0f, 7.5f),
+                    copy => Rewire(copy.GetComponent<DustClump>(), "_trashCan", FindInScene<TrashCan>(scene)));
+            }
+
+            // 빗자루와 뭉치들을 잇는다. 스테이지 씬이 함께 열려 있으므로 이 씬의 것만 찾는다.
             Broom broom = FindInScene<Broom>(scene);
-            DustClump clump = FindInScene<DustClump>(scene);
-            if (broom != null && clump != null)
-                Rewire(broom, "_dustClump", clump);
+            if (broom != null)
+            {
+                var clumps = new List<DustClump>();
+                foreach (GameObject root in scene.GetRootGameObjects())
+                {
+                    DustClump clump = root.GetComponentInChildren<DustClump>(true);
+                    if (clump != null)
+                        clumps.Add(clump);
+                }
+
+                var serialized = new SerializedObject(broom);
+                SerializedProperty array = serialized.FindProperty("_dustClumps");
+                array.arraySize = clumps.Count;
+                for (int index = 0; index < clumps.Count; index++)
+                    array.GetArrayElementAtIndex(index).objectReferenceValue = clumps[index];
+                serialized.ApplyModifiedPropertiesWithoutUndo();
+            }
 
             EditorSceneManager.CloseScene(stage, true);
         }

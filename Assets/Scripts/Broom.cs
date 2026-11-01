@@ -16,8 +16,13 @@ namespace OverCleaning.InGame
     public sealed class Broom : CarriableItem
     {
         [SerializeField] private DustField _dustField;
-        [Tooltip("쓸어 모은 먼지가 뭉치는 자리. 비우면 먼지가 모이지 않고 바로 사라진다.")]
-        [SerializeField] private DustClump _dustClump;
+        [Tooltip("쓸어 모은 먼지가 뭉치는 자리들. 가까운 뭉치에 쌓이고, 없으면 빈 뭉치가 새로 깔린다. " +
+                 "비우면 먼지가 모이지 않고 바로 사라진다.")]
+        [SerializeField] private DustClump[] _dustClumps = new DustClump[0];
+        [Tooltip("이 거리 안의 뭉치에 이어서 쌓는다. 더 멀면 빈 뭉치를 새로 깐다.")]
+        [Min(0.5f)] [SerializeField] private float _clumpSearchRadius = 3f;
+        [Tooltip("새 뭉치를 까는 자리. 빗자루가 미는 쪽으로 이만큼 앞이다. 쓸던 사람을 밀지 않게 띄운다.")]
+        [Min(0.3f)] [SerializeField] private float _clumpPlaceDistance = 1.1f;
         [Tooltip("쓸어 내는 기준 지점. 비우면 물건의 위치를 쓴다.")]
         [SerializeField] private Transform _sweepPoint;
         [Min(0.1f)] [SerializeField] private float _sweepRadius = 1.5f;
@@ -119,6 +124,11 @@ namespace OverCleaning.InGame
 
             // 프레임 지연 뒤 여러 회차를 한꺼번에 치우지 않는다.
             _sweepElapsedTime %= _sweepInterval;
+
+            // 쌓을 뭉치가 없으면(전부 가득) 쓸어도 담기지 않는다. HUD가 버리라고 안내한다.
+            if (_dustClumps.Length > 0 && SelectClump(SweepPosition, false) == null)
+                return;
+
             int count = _dustField.GetDustIdsInRange(SweepPosition, _sweepRadius, _dustIdBuffer);
             int take = Mathf.Min(count, _dustPerSweep);
             for (int index = 0; index < take; index++)
@@ -127,6 +137,49 @@ namespace OverCleaning.InGame
                 _dustField.RemoveDustById(_dustIdBuffer[index]);
                 ReportSweptDustRpc(_dustIdBuffer[index], SweepPosition);
             }
+        }
+
+        /// <summary>
+        /// 쓸어 온 먼지를 받을 뭉치를 고른다. 가까이에 쌓이던 뭉치가 있으면 거기,
+        /// 없으면 빈 뭉치를 쓴다. 수량과 자리가 모두 동기화되는 값이라 든 사람의
+        /// 기기와 서버가 같은 답을 고른다.
+        /// </summary>
+        private DustClump SelectClump(Vector3 position, bool allowOverflow)
+        {
+            DustClump nearby = null;
+            float nearbyDistance = float.MaxValue;
+            DustClump empty = null;
+            DustClump fallback = null;
+            float fallbackDistance = float.MaxValue;
+            foreach (DustClump clump in _dustClumps)
+            {
+                if (clump == null)
+                    continue;
+                float distance = Vector3.Distance(clump.transform.position, position);
+                if (clump.StoredDustCount > 0)
+                {
+                    if (clump.HasSpace && distance <= _clumpSearchRadius && distance < nearbyDistance)
+                    {
+                        nearby = clump;
+                        nearbyDistance = distance;
+                    }
+                    if (distance < fallbackDistance)
+                    {
+                        fallback = clump;
+                        fallbackDistance = distance;
+                    }
+                }
+                else if (empty == null && !clump.IsHeld)
+                {
+                    empty = clump;
+                }
+            }
+
+            if (nearby != null)
+                return nearby;
+            if (empty != null)
+                return empty;
+            return allowOverflow ? fallback : null;
         }
 
         /// <summary>
@@ -153,9 +206,20 @@ namespace OverCleaning.InGame
             if (!IsFromHolder(rpcParams))
                 return;
 
-            if (_dustClump != null)
+            DustClump clump = _dustClumps.Length > 0 ? SelectClump(gatherPosition, true) : null;
+            if (clump != null)
             {
-                _dustClump.ServerAddDust(1, gatherPosition);
+                if (clump.StoredDustCount == 0)
+                {
+                    // 새 뭉치는 빗자루가 미는 쪽 조금 앞에 깐다. 쓸던 사람 발밑에
+                    // 생기면 뭉치가 커지며 사람을 밀어내기 때문이다.
+                    Vector3 forward = transform.forward;
+                    forward.y = 0f;
+                    forward = forward.sqrMagnitude > 0.0001f ? forward.normalized : Vector3.forward;
+                    clump.ServerPlaceAt(gatherPosition + forward * _clumpPlaceDistance);
+                }
+
+                clump.ServerAddDust(1);
             }
             else
             {
@@ -182,11 +246,23 @@ namespace OverCleaning.InGame
 
             if (!IsHeldByLocalPlayer)
                 return;
-            string hint = _isSweeping ? "쓸어 모으는 중... (이동 불가, 방향 키로 돌리기)" :
+
+            int gathered = 0;
+            bool hasSpace = _dustClumps.Length == 0;
+            foreach (DustClump clump in _dustClumps)
+            {
+                if (clump == null)
+                    continue;
+                gathered += clump.StoredDustCount;
+                if (clump.HasSpace)
+                    hasSpace = true;
+            }
+
+            string hint = !hasSpace ? "뭉치가 모두 가득! 들어서 쓰레기통에 버리세요" :
+                _isSweeping ? "쓸어 모으는 중... (이동 불가, 방향 키로 돌리기)" :
                 HasDustInRange ? "들기 키 꾹: 제자리에서 쓸어 모으기 / 짧게: 내려놓기" :
                 "먼지 근처에서 꾹 누르면 뭉친 먼지로 쓸어 모읍니다 (짧게: 내려놓기)";
-            string gathered = _dustClump != null ? $"뭉친 먼지 {_dustClump.StoredDustCount}" : "빗자루";
-            GUI.Box(new Rect(16f, 16f, 360f, 48f), $"{gathered}\n{hint}");
+            GUI.Box(new Rect(16f, 16f, 360f, 48f), $"뭉친 먼지 {gathered}\n{hint}");
         }
 
         /// <summary>

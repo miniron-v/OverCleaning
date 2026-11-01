@@ -18,11 +18,15 @@ namespace OverCleaning.InGame
         [SerializeField] private Transform _ball;
         [Tooltip("먼지 1개일 때의 지름(m).")]
         [Min(0.05f)] [SerializeField] private float _baseDiameter = 0.25f;
+        [Tooltip("한 뭉치가 담을 수 있는 먼지 수. 차면 빗자루가 새 뭉치를 깐다.")]
+        [Min(1)] [SerializeField] private int _capacity = 30;
 
         /// <summary>서버가 정한다. 뭉친 먼지 수. 모두가 같은 크기를 본다.</summary>
         private readonly NetworkVariable<int> _storedDust = new NetworkVariable<int>();
 
         public int StoredDustCount => _storedDust.Value;
+        public int Capacity => _capacity;
+        public bool HasSpace => _storedDust.Value < _capacity;
 
         protected override string ItemName => "뭉친 먼지";
 
@@ -31,6 +35,25 @@ namespace OverCleaning.InGame
 
         /// <summary>안아 든 것처럼 몸 앞에 들린다.</summary>
         protected override Vector3 HeldLocalPosition => new Vector3(0f, 0.55f, 0.45f);
+
+        /// <summary>든 사람은 뭉치가 향한 쪽을 본다. 뭉치가 돌면 몸도 함께 돈다.</summary>
+        public override Vector3 HeldFacingDirection => transform.forward;
+
+        /// <summary>
+        /// 들고 있으면 보는 쪽으로 돈다. 제 자리가 몸 중심이 아니라 몸 앞이라,
+        /// 돌 때 자리도 함께 돌려 준다. 돌지 않으면 뭉치가 늘 한쪽에 붙어 있어
+        /// 몸이 그쪽만 보게 된다.
+        /// </summary>
+        public override void AimAt(Vector3 facingDirection)
+        {
+            if (!IsHeld || !IsOwner || facingDirection.sqrMagnitude < 0.000001f)
+                return;
+
+            Quaternion target = Quaternion.LookRotation(facingDirection, Vector3.up);
+            float alpha = 1f - Mathf.Exp(-10f * Time.fixedDeltaTime);
+            transform.rotation = Quaternion.Slerp(transform.rotation, target, alpha);
+            transform.localPosition = transform.localRotation * HeldLocalPosition;
+        }
 
         public override void OnNetworkSpawn()
         {
@@ -70,21 +93,24 @@ namespace OverCleaning.InGame
                 _bodyCollider.enabled = hasDust;
         }
 
-        /// <summary>
-        /// 서버에서만 부른다. 빗자루가 쓸어 온 먼지를 더하고, 놓여 있는 동안은
-        /// 쓸던 자리로 끌어다 둔다. 빗자루질을 따라다니며 한 곳에 뭉치는 모습이 된다.
-        /// </summary>
-        internal void ServerAddDust(int amount, Vector3 gatherPosition)
+        /// <summary>서버에서만 부른다. 빗자루가 쓸어 온 먼지를 더한다. 자리는 그대로다.</summary>
+        internal void ServerAddDust(int amount)
         {
-            if (!IsServer || amount <= 0)
-                return;
+            if (IsServer && amount > 0)
+                _storedDust.Value += amount;
+        }
 
-            _storedDust.Value += amount;
-            if (!IsHeld)
-            {
-                gatherPosition.y = transform.position.y;
-                transform.position = gatherPosition;
-            }
+        /// <summary>
+        /// 서버에서만 부른다. 빈 뭉치를 새로 쓸 자리에 깐다. 한 번 깔린 뭉치는
+        /// 움직이지 않는다 — 들어서 옮기는 것만 된다.
+        /// </summary>
+        internal void ServerPlaceAt(Vector3 position)
+        {
+            if (!IsServer || IsHeld)
+                return;
+            position.y = transform.position.y;
+            transform.position = position;
+            Physics.SyncTransforms();
         }
 
         /// <summary>쓰레기통 옆에서 꾹 누르면 모은 먼지를 한 번에 쏟아 버린다.</summary>
@@ -126,7 +152,7 @@ namespace OverCleaning.InGame
                 return;
             string hint = CanHoldUse ? "들기 키 꾹: 쓰레기통에 쏟기 / 짧게: 내려놓기"
                 : "쓰레기통 가까이 가서 꾹 누르면 쏟습니다 (짧게: 내려놓기)";
-            GUI.Box(new Rect(16f, 16f, 360f, 48f), $"뭉친 먼지 {StoredDustCount}\n{hint}");
+            GUI.Box(new Rect(16f, 16f, 360f, 48f), $"뭉친 먼지 {StoredDustCount}/{_capacity}\n{hint}");
         }
     }
 }
