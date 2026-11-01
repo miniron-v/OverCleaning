@@ -878,7 +878,7 @@ MonoBehaviour:
   ShowTopMostFoldoutHeaderGroup: 1
   _carryMode: 0
   _carryFollowSharpness: 8
-  _carrySpeedMultiplier: 1
+  _carrySpeedMultiplier: 0.75
   _pickUpRange: 1.5
   _obstacleLayers:
     serializedVersion: 2
@@ -3002,7 +3002,7 @@ MonoBehaviour:
   ShowTopMostFoldoutHeaderGroup: 1
   _carryMode: 0
   _carryFollowSharpness: 8
-  _carrySpeedMultiplier: 1
+  _carrySpeedMultiplier: 0.85
   _pickUpRange: 1.5
   _obstacleLayers:
     serializedVersion: 2
@@ -3394,7 +3394,7 @@ MonoBehaviour:
   ShowTopMostFoldoutHeaderGroup: 1
   _carryMode: 0
   _carryFollowSharpness: 8
-  _carrySpeedMultiplier: 1
+  _carrySpeedMultiplier: 0.85
   _pickUpRange: 1.5
   _obstacleLayers:
     serializedVersion: 2
@@ -4963,7 +4963,7 @@ MonoBehaviour:
   ShowTopMostFoldoutHeaderGroup: 1
   _carryMode: 0
   _carryFollowSharpness: 8
-  _carrySpeedMultiplier: 1
+  _carrySpeedMultiplier: 0.85
   _pickUpRange: 1.5
   _obstacleLayers:
     serializedVersion: 2
@@ -14680,7 +14680,7 @@ MonoBehaviour:
   ShowTopMostFoldoutHeaderGroup: 1
   _carryMode: 0
   _carryFollowSharpness: 8
-  _carrySpeedMultiplier: 1
+  _carrySpeedMultiplier: 0.75
   _pickUpRange: 1.5
   _obstacleLayers:
     serializedVersion: 2
@@ -15119,7 +15119,7 @@ MonoBehaviour:
   ShowTopMostFoldoutHeaderGroup: 1
   _carryMode: 1
   _carryFollowSharpness: 8
-  _carrySpeedMultiplier: 0.7
+  _carrySpeedMultiplier: 0.8
   _pickUpRange: 0.8
   _obstacleLayers:
     serializedVersion: 2
