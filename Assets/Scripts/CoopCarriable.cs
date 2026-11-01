@@ -32,14 +32,17 @@ namespace OverCleaning.InGame
         [SerializeField] private string _itemName = "소파";
         [Tooltip("든 동안 잡은 자리에서 벗어날 수 있는 거리. 작을수록 딱 붙는다.")]
         [Min(0.05f)] [SerializeField] private float _tetherRadius = 0.35f;
+        [Tooltip("일부만 잡았을 때 잡은 쪽이 들리는 각도(도). 자리는 그대로고 기울기만 바뀐다.")]
+        [Min(0f)] [SerializeField] private float _partialTiltAngle = 7f;
 
         /// <summary>잡고 있는 사람들. 서버가 넣고 빼며 모두에게 내려간다.</summary>
         private readonly NetworkList<ulong> _lifterClientIds = new NetworkList<ulong>();
 
         private BoxCollider _bodyCollider;
 
-        /// <summary>서버에서만 쓴다. 내려앉을 높이와, 다 잡힌 순간의 자세.</summary>
+        /// <summary>서버에서만 쓴다. 내려앉을 높이·방향과, 다 잡힌 순간의 자세.</summary>
         private float _restHeight;
+        private Quaternion _restRotation = Quaternion.identity;
         private bool _carryEngaged;
 
         /// <summary>
@@ -99,8 +102,10 @@ namespace OverCleaning.InGame
 
         public override void OnNetworkSpawn()
         {
-            if (IsServer)
-                _restHeight = transform.position.y;
+            if (!IsServer)
+                return;
+            _restHeight = transform.position.y;
+            _restRotation = transform.rotation;
         }
 
         public void Interact()
@@ -143,14 +148,58 @@ namespace OverCleaning.InGame
                 return;
             }
 
-            // 인원이 빠지면 그 자리에 내려앉는다.
-            _carryEngaged = false;
-            Vector3 position = transform.position;
-            if (position.y > _restHeight + 0.001f)
+            if (_carryEngaged)
             {
-                position.y = Mathf.Lerp(position.y, _restHeight, 1f - Mathf.Exp(-8f * Time.deltaTime));
-                transform.position = position;
+                // 함께 들기가 끝났다. 내려앉은 지금 방향이 새 제자리다.
+                _carryEngaged = false;
+                _restRotation = transform.rotation;
             }
+
+            UpdateRestPose();
+        }
+
+        /// <summary>
+        /// 다 들리기 전의 자세. 일부만 잡았으면 잡은 쪽 모서리가 살짝 들려 "잡혔다"는
+        /// 티를 내고, 아무도 없으면 제자리에 내려앉는다. 자리는 그대로다 — 기울기만 바뀐다.
+        /// </summary>
+        private void UpdateRestPose()
+        {
+            Quaternion targetRotation = _restRotation;
+            float targetHeight = _restHeight;
+
+            if (_lifterClientIds.Count > 0)
+            {
+                Vector3 midpoint = Vector3.zero;
+                int counted = 0;
+                for (int index = 0; index < _lifterClientIds.Count; index++)
+                {
+                    Rigidbody body = FindPlayerBody(_lifterClientIds[index]);
+                    if (body == null)
+                        continue;
+                    midpoint += body.position;
+                    counted++;
+                }
+
+                if (counted > 0)
+                {
+                    Vector3 towardLifter = midpoint / counted - transform.position;
+                    towardLifter.y = 0f;
+                    if (towardLifter.sqrMagnitude > 0.0001f)
+                    {
+                        // 잡은 쪽이 올라가는 축으로 기울이고, 반대쪽 모서리가
+                        // 바닥을 파고들지 않게 그만큼 살짝 띄운다.
+                        Vector3 axis = Vector3.Cross(Vector3.up, towardLifter.normalized);
+                        targetRotation = Quaternion.AngleAxis(-_partialTiltAngle, axis) * _restRotation;
+                        targetHeight = _restHeight + 0.08f;
+                    }
+                }
+            }
+
+            float alpha = 1f - Mathf.Exp(-8f * Time.deltaTime);
+            transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, alpha);
+            Vector3 position = transform.position;
+            position.y = Mathf.Lerp(position.y, targetHeight, alpha);
+            transform.position = position;
         }
 
         /// <summary>나갔거나 멀어졌거나 다른 것을 집은 사람은 잡기에서 빠진다.</summary>
