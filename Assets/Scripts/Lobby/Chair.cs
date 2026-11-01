@@ -89,7 +89,7 @@ namespace OverCleaning.Lobby
                 return;
 
             if (player.TryGetComponent(out PlayerMovement movement))
-                movement.enabled = !isSeated;
+                movement.SetLocked(this, isSeated);
             if (player.TryGetComponent(out Rigidbody playerBody))
                 playerBody.isKinematic = isSeated;
 

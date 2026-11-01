@@ -62,12 +62,12 @@ namespace OverCleaning.InGame
             if (!IsOwner || _playerMovement == null)
                 return;
 
-            // 기절 동안 조작을 멈춘다. 끝나면 돌려준다. 튕겨난 속도는 지우지 않는다.
+            // 기절 동안 걷기를 멈춘다. 끝나면 돌려준다.
             bool frozen = IsMovementFrozen;
             if (frozen == _movementFrozen)
                 return;
             _movementFrozen = frozen;
-            _playerMovement.enabled = !frozen;
+            _playerMovement.SetLocked(this, frozen);
             if (frozen)
                 _playerMovement.ResetInputState();
         }
@@ -166,12 +166,14 @@ namespace OverCleaning.InGame
 
         private void ApplyKnockback(Vector3 direction, float speed)
         {
+            _predictedStunEndTime = Time.time + _stunDuration;
+            // RPC는 프레임 초반에 오므로 Update까지 기다리면 그 사이 이동 코드가 튕겨난 속도를 덮어쓴다.
+            // 걷기를 막으면 걷던 속도가 멈추므로, 막은 뒤에 튕겨낸다.
+            UpdateMovementFrozen();
+
             direction.y = 0f;
             if (direction.sqrMagnitude > 0.000001f)
                 _body.linearVelocity = direction.normalized * speed;
-            _predictedStunEndTime = Time.time + _stunDuration;
-            // RPC는 프레임 초반에 오므로 Update까지 기다리면 그 사이 이동 코드가 튕겨난 속도를 덮어쓴다.
-            UpdateMovementFrozen();
         }
 
         /// <summary>털먼지는 모두의 바닥에 같은 자리로 흩어져야 한다. 시드로 맞춘다.</summary>

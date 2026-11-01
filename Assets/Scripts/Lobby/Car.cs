@@ -253,7 +253,7 @@ namespace OverCleaning.Lobby
             if (mainCamera != null && mainCamera.TryGetComponent(out CameraFollow follow))
                 follow.IsRiding = isSeated;
             if (player.TryGetComponent(out PlayerMovement movement))
-                movement.enabled = !isSeated;
+                movement.SetLocked(this, isSeated);
             if (player.TryGetComponent(out Rigidbody playerBody))
             {
                 playerBody.isKinematic = isSeated;
