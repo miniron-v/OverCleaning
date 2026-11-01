@@ -13,7 +13,7 @@ namespace OverCleaning.EditorTools
     /// <summary>
     /// 청소 업데이트의 씬 배치를 한 번에 한다. 에디터 없이도 batchmode로 돌릴 수 있다.
     /// 청소기 한 대 복제, 새 도구(물걸레·창문닦이·빗자루) 배치, 벽에 창문과 얼룩,
-    /// 바닥에 얼룩과 쓰레기, GrimeField/LitterField 생성과 GameRound 연결까지.
+    /// 바닥에 얼룩, GrimeField 생성과 GameRound 연결까지.
     /// 씬을 저장하므로 NetworkObject의 GlobalObjectIdHash는 Unity가 정식으로 만든다.
     /// 다시 돌려도 이미 만든 것은 건너뛴다.
     /// </summary>
@@ -45,7 +45,6 @@ namespace OverCleaning.EditorTools
             DuplicateVacuum(vacuum);
 
             GrimeField grimeField = Object.FindFirstObjectByType<GrimeField>();
-            LitterField litterField = Object.FindFirstObjectByType<LitterField>();
             var spots = new List<GrimeSpot>();
             if (grimeField == null)
             {
@@ -54,17 +53,10 @@ namespace OverCleaning.EditorTools
                 grimeField = CreateField<GrimeField>("Grime Field", "_spots", spots.ToArray());
             }
 
-            if (litterField == null)
-            {
-                GameObject[] litters = CreateLitters(floors);
-                litterField = CreateField<LitterField>("Litter Field", "_litters", litters);
-            }
-
-            CreateTools(vacuum, grimeField, litterField);
+            CreateTools(vacuum, dustField, grimeField);
 
             var round = new SerializedObject(gameRound);
             round.FindProperty("_grimeField").objectReferenceValue = grimeField;
-            round.FindProperty("_litterField").objectReferenceValue = litterField;
             round.ApplyModifiedPropertiesWithoutUndo();
 
             RefreshNetworkObjectHashes();
@@ -92,7 +84,7 @@ namespace OverCleaning.EditorTools
 
         // ---------- 새 도구 ----------
 
-        private static void CreateTools(Vacuum vacuum, GrimeField grimeField, LitterField litterField)
+        private static void CreateTools(Vacuum vacuum, DustField dustField, GrimeField grimeField)
         {
             Material handle = EnsureOpaqueMaterial("ToolHandle", new Color(0.55f, 0.38f, 0.2f));
             Material mopPad = EnsureOpaqueMaterial("MopPad", new Color(0.25f, 0.45f, 0.8f));
@@ -150,7 +142,7 @@ namespace OverCleaning.EditorTools
                 Transform sweepPoint = AddPoint(broom, "Sweep Point", new Vector3(0f, 0.1f, 0.5f));
                 var broomItem = broom.AddComponent<Broom>();
                 var serialized = new SerializedObject(broomItem);
-                serialized.FindProperty("_litterField").objectReferenceValue = litterField;
+                serialized.FindProperty("_dustField").objectReferenceValue = dustField;
                 serialized.FindProperty("_sweepPoint").objectReferenceValue = sweepPoint;
                 serialized.ApplyModifiedPropertiesWithoutUndo();
                 PlaceTool(broom, anchor + new Vector3(-4.5f, 0f, 0f));
@@ -293,51 +285,6 @@ namespace OverCleaning.EditorTools
             serialized.FindProperty("_renderer").objectReferenceValue = quad.GetComponent<Renderer>();
             serialized.ApplyModifiedPropertiesWithoutUndo();
             spots.Add(spot);
-        }
-
-        // ---------- 쓰레기 ----------
-
-        private static GameObject[] CreateLitters(Collider[] floors)
-        {
-            Material paper = EnsureOpaqueMaterial("LitterPaper", new Color(0.93f, 0.92f, 0.88f));
-            Material can = EnsureOpaqueMaterial("LitterCan", new Color(0.75f, 0.3f, 0.25f));
-            var random = new System.Random(20261019);
-
-            var parent = new GameObject("Litters");
-            var litters = new List<GameObject>();
-            for (int attempt = 0; attempt < 160 && litters.Count < 8; attempt++)
-            {
-                Collider floor = floors[litters.Count % floors.Length];
-                Bounds bounds = floor.bounds;
-                var candidate = new Vector3(
-                    Mathf.Lerp(bounds.min.x + 0.5f, bounds.max.x - 0.5f, (float)random.NextDouble()),
-                    bounds.max.y + 1f,
-                    Mathf.Lerp(bounds.min.z + 0.5f, bounds.max.z - 0.5f, (float)random.NextDouble()));
-                if (!floor.Raycast(new Ray(candidate, Vector3.down), out RaycastHit hit, 3f))
-                    continue;
-                if (IsBlocked(hit.point + Vector3.up * 0.2f, new Vector3(0.2f, 0.18f, 0.2f), floor))
-                    continue;
-
-                bool isPaper = litters.Count % 2 == 0;
-                GameObject litter = GameObject.CreatePrimitive(
-                    isPaper ? PrimitiveType.Sphere : PrimitiveType.Cylinder);
-                litter.name = isPaper ? $"Litter Paper {litters.Count + 1}" : $"Litter Can {litters.Count + 1}";
-                Object.DestroyImmediate(litter.GetComponent<Collider>());
-                litter.transform.SetParent(parent.transform);
-                litter.transform.localScale = isPaper
-                    ? new Vector3(0.22f, 0.18f, 0.22f)
-                    : new Vector3(0.14f, 0.11f, 0.14f);
-                litter.transform.position = hit.point + Vector3.up * (isPaper ? 0.09f : 0.08f);
-                litter.transform.rotation = isPaper
-                    ? Quaternion.Euler(0f, (float)random.NextDouble() * 360f, 0f)
-                    : Quaternion.Euler(90f, (float)random.NextDouble() * 360f, 0f);
-                litter.GetComponent<Renderer>().sharedMaterial = isPaper ? paper : can;
-                litters.Add(litter);
-            }
-
-            if (litters.Count < 8)
-                Debug.LogWarning($"쓰레기를 {litters.Count}개만 놓았습니다. 자리가 부족합니다.");
-            return litters.ToArray();
         }
 
         // ---------- 공통 도우미 ----------

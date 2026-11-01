@@ -4,36 +4,40 @@ using UnityEngine;
 namespace OverCleaning.InGame
 {
     /// <summary>
-    /// 빗자루. 들고서 들기 키를 꾹 누르고 있으면 쓸어 담는 지점 근처의 쓰레기를
-    /// 일정 간격으로 담는다. 짧게 누르면 여느 물건처럼 내려놓는다.
-    /// 담을 쓰레기를 고르는 것은 든 사람의 기기, 확정은 서버다. 청소기와 같은 분담이다.
+    /// 빗자루. 들고서 들기 키를 꾹 누르고 있으면 빗자루질을 하고, 쓸어 내는 지점
+    /// 근처의 먼지 — 청소기가 빨아들이는 바로 그 먼지 — 를 일정 간격으로 쓸어 치운다.
+    /// 짧게 누르면 여느 물건처럼 내려놓는다.
+    ///
+    /// 치울 먼지를 고르는 것은 든 사람의 기기, 확정은 서버다. 먼지 번호는 모든
+    /// 기기에서 같으므로, 내 화면에서 치운 먼지를 서버가 남의 화면에서도 지워 준다.
+    /// 청소기와 같은 분담이고, 휘젓는 움직임은 NetworkTransform을 타서 모두가 본다.
     /// </summary>
     public sealed class Broom : CarriableItem
     {
-        [SerializeField] private LitterField _litterField;
-        [Tooltip("쓸어 담는 기준 지점. 비우면 물건의 위치를 쓴다.")]
+        [SerializeField] private DustField _dustField;
+        [Tooltip("쓸어 내는 기준 지점. 비우면 물건의 위치를 쓴다.")]
         [SerializeField] private Transform _sweepPoint;
         [Min(0.1f)] [SerializeField] private float _sweepRadius = 1.5f;
-        [Tooltip("이 간격(초)마다 범위 안 쓰레기를 담는다.")]
+        [Tooltip("이 간격(초)마다 범위 안 먼지를 쓸어 치운다.")]
         [Min(0.05f)] [SerializeField] private float _sweepInterval = 0.5f;
-        [Tooltip("한 번에 담는 쓰레기 수.")]
-        [Min(1)] [SerializeField] private int _littersPerSweep = 2;
+        [Tooltip("한 번에 쓸어 치우는 먼지 수. 청소기보다 느긋한 것이 빗자루답다.")]
+        [Min(1)] [SerializeField] private int _dustPerSweep = 4;
         [Tooltip("보는 쪽으로 도는 반응 속도. 클수록 빨리 따라붙는다.")]
         [Min(0.1f)] [SerializeField] private float _aimSmoothing = 10f;
 
-        /// <summary>서버가 정한다. 담은 쓰레기 수. 모두가 같은 숫자를 본다.</summary>
-        private readonly NetworkVariable<int> _storedLitter = new NetworkVariable<int>();
+        /// <summary>서버가 정한다. 쓸어 치운 먼지 수. 모두가 같은 숫자를 본다.</summary>
+        private readonly NetworkVariable<int> _sweptDust = new NetworkVariable<int>();
 
         /// <summary>서버가 정한다. 쓸고 있는지. 빗자루질 중 표시를 모두가 본다.</summary>
         private readonly NetworkVariable<bool> _sweeping = new NetworkVariable<bool>();
 
-        private readonly int[] _litterBuffer = new int[16];
+        private readonly int[] _dustIdBuffer = new int[16];
         private bool _isSweeping;
         private float _sweepElapsedTime;
         private float _swingPhase;
         private Camera _statusCamera;
 
-        public int StoredLitterCount => _storedLitter.Value;
+        public int SweptDustCount => _sweptDust.Value;
 
         protected override string ItemName => "빗자루";
 
@@ -45,13 +49,13 @@ namespace OverCleaning.InGame
 
         private Vector3 SweepPosition => _sweepPoint != null ? _sweepPoint.position : transform.position;
 
-        private bool HasLitterInRange =>
-            _litterField != null && _litterField.isActiveAndEnabled &&
-            _litterField.GetLittersInRange(SweepPosition, _sweepRadius, _litterBuffer) > 0;
+        private bool HasDustInRange =>
+            _dustField != null && _dustField.isActiveAndEnabled &&
+            _dustField.GetDustIdsInRange(SweepPosition, _sweepRadius, _dustIdBuffer) > 0;
 
         /// <summary>
-        /// 들고 꾹 누르면 어디서든 빗자루질을 한다. 쓰레기가 없어도 휘저어지는 모습이
-        /// 보여야 쓰는 느낌이 나고, 담기는 범위에 쓰레기가 있을 때만 된다.
+        /// 들고 꾹 누르면 어디서든 빗자루질을 한다. 먼지가 없어도 휘저어지는 모습이
+        /// 보여야 쓰는 느낌이 나고, 치우기는 범위에 먼지가 있을 때만 된다.
         /// </summary>
         public override bool CanHoldUse => IsHeld;
 
@@ -99,25 +103,29 @@ namespace OverCleaning.InGame
 
         private void LateUpdate()
         {
-            // 담을 쓰레기를 고르는 것은 든 사람의 기기만 한다. 각자 고르면 같은 것을 두 번 담는다.
+            // 치울 먼지를 고르는 것은 든 사람의 기기만 한다. 각자 고르면 같은 것을 두 번 센다.
             if (!IsOwner || !IsHeld)
                 return;
 
             UpdateSwing();
 
-            if (!_isSweeping || _litterField == null)
+            if (!_isSweeping || _dustField == null || !_dustField.isActiveAndEnabled)
                 return;
 
             _sweepElapsedTime += Time.deltaTime;
             if (_sweepElapsedTime < _sweepInterval)
                 return;
 
-            // 프레임 지연 뒤 여러 회차를 한꺼번에 담지 않는다.
+            // 프레임 지연 뒤 여러 회차를 한꺼번에 치우지 않는다.
             _sweepElapsedTime %= _sweepInterval;
-            int count = _litterField.GetLittersInRange(SweepPosition, _sweepRadius, _litterBuffer);
-            int take = Mathf.Min(count, _littersPerSweep);
+            int count = _dustField.GetDustIdsInRange(SweepPosition, _sweepRadius, _dustIdBuffer);
+            int take = Mathf.Min(count, _dustPerSweep);
             for (int index = 0; index < take; index++)
-                CollectLitterRpc(_litterBuffer[index]);
+            {
+                // 내 화면에서 바로 치우고 서버에 알린다. 청소기가 빤 먼지를 알리는 흐름과 같다.
+                _dustField.RemoveDustById(_dustIdBuffer[index]);
+                ReportSweptDustRpc(_dustIdBuffer[index]);
+            }
         }
 
         /// <summary>
@@ -134,19 +142,26 @@ namespace OverCleaning.InGame
             transform.localPosition = Vector3.Lerp(transform.localPosition, target, 0.35f);
         }
 
-        /// <summary>담았다고 서버에 알린다. 확정과 전적은 서버가 맡는다.</summary>
+        /// <summary>쓸어 치웠다고 서버에 알린다. 수량 확정과 전적, 남의 화면 정리는 서버가 맡는다.</summary>
         [Rpc(SendTo.Server)]
-        private void CollectLitterRpc(int litterIndex, RpcParams rpcParams = default)
+        private void ReportSweptDustRpc(int dustId, RpcParams rpcParams = default)
         {
-            if (!IsFromHolder(rpcParams) || _litterField == null)
-                return;
-            if (!_litterField.ServerCollect(litterIndex))
+            if (!IsFromHolder(rpcParams))
                 return;
 
-            _storedLitter.Value++;
+            _sweptDust.Value++;
             PlayerScore score = HolderBody != null ? HolderBody.GetComponent<PlayerScore>() : null;
             if (score != null)
                 score.ServerAddCleanedDust(1);
+            RemoveDustRpc(dustId);
+        }
+
+        /// <summary>쓸어 낸 사람은 이미 지웠으므로 그 사람만 빼고 보낸다.</summary>
+        [Rpc(SendTo.NotOwner)]
+        private void RemoveDustRpc(int dustId)
+        {
+            if (_dustField != null)
+                _dustField.RemoveDustById(dustId);
         }
 
         private void OnGUI()
@@ -155,10 +170,10 @@ namespace OverCleaning.InGame
 
             if (!IsHeldByLocalPlayer)
                 return;
-            string hint = _isSweeping ? "쓸어 담는 중..." :
-                HasLitterInRange ? "들기 키 꾹: 쓸어 담기 / 짧게: 내려놓기" :
-                "꾹 누르면 빗자루질을 하고, 쓰레기 근처면 담습니다 (짧게: 내려놓기)";
-            GUI.Box(new Rect(16f, 16f, 360f, 48f), $"담은 쓰레기 {StoredLitterCount}\n{hint}");
+            string hint = _isSweeping ? "쓸어 치우는 중..." :
+                HasDustInRange ? "들기 키 꾹: 쓸어 치우기 / 짧게: 내려놓기" :
+                "꾹 누르면 빗자루질을 하고, 먼지 위에서는 쓸려 나갑니다 (짧게: 내려놓기)";
+            GUI.Box(new Rect(16f, 16f, 360f, 48f), $"쓸어 치운 먼지 {SweptDustCount}\n{hint}");
         }
 
         /// <summary>

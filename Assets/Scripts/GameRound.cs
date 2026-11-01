@@ -30,8 +30,6 @@ namespace OverCleaning.InGame
         [SerializeField] private DustField _dustField;
         [Tooltip("얼룩이 있는 스테이지만 지정한다. 비우면 먼지만으로 판정한다.")]
         [SerializeField] private GrimeField _grimeField;
-        [Tooltip("쓰레기가 있는 스테이지만 지정한다. 비우면 먼지만으로 판정한다.")]
-        [SerializeField] private LitterField _litterField;
         [SerializeField] private GameScreen _gameScreen;
 
         /// <summary>서버가 정한다. 판이 끝나는 서버 시각.</summary>
@@ -108,13 +106,11 @@ namespace OverCleaning.InGame
         /// </summary>
         private bool IsEverythingCleaned()
         {
-            if (_dustField == null && _grimeField == null && _litterField == null)
+            if (_dustField == null && _grimeField == null)
                 return false;
             if (_dustField != null && (!_dustField.IsBuilt || _dustField.RemainingDustCount > 0))
                 return false;
             if (_grimeField != null && (!_grimeField.IsBuilt || _grimeField.RemainingCount > 0))
-                return false;
-            if (_litterField != null && (!_litterField.IsBuilt || _litterField.RemainingCount > 0))
                 return false;
             return true;
         }
@@ -165,8 +161,6 @@ namespace OverCleaning.InGame
                 summary += $"   |   먼지 {_dustField.RemainingDustCount}";
             if (_grimeField != null)
                 summary += $"   |   얼룩 {_grimeField.RemainingCount}";
-            if (_litterField != null)
-                summary += $"   |   쓰레기 {_litterField.RemainingCount}";
             GUI.Box(new Rect((Screen.width - 360f) * 0.5f, 12f, 360f, 34f), summary);
         }
 

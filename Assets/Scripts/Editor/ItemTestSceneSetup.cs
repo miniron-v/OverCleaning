@@ -54,10 +54,8 @@ namespace OverCleaning.EditorTools
             CreateWindowsWithStains(northWall, spots);
             CreateFloorStains(zoneFloors[1], spots);
             GrimeField grimeField = CreateField<GrimeField>("Grime Field", "_spots", spots.ToArray());
-            GameObject[] litters = CreateLitters(zoneFloors[3]);
-            LitterField litterField = CreateField<LitterField>("Litter Field", "_litters", litters);
-
-            CopyStageObjects(scene, grimeField, litterField);
+            DustField dustField = Object.FindFirstObjectByType<DustField>();
+            CopyStageObjects(scene, grimeField, dustField);
 
             RefreshNetworkObjectHashes();
             EditorSceneManager.MarkSceneDirty(scene);
@@ -183,15 +181,16 @@ namespace OverCleaning.EditorTools
             if (trashCan != null)
                 trashCan.transform.position = new Vector3(6f, trashCan.transform.position.y, 9f);
 
-            // 먼지는 1구역 바닥에만 깔리게 바꾼다. 테스트니 양은 적게.
+            // 먼지는 1구역(청소기)과 4구역(빗자루)에 깔린다. 빗자루도 같은 먼지를 치운다.
             DustField dustField = Object.FindFirstObjectByType<DustField>();
             if (dustField != null)
             {
                 var serialized = new SerializedObject(dustField);
                 SerializedProperty floors = serialized.FindProperty("_floors");
-                floors.arraySize = 1;
+                floors.arraySize = 2;
                 floors.GetArrayElementAtIndex(0).objectReferenceValue = zoneFloors[0];
-                serialized.FindProperty("_dustCount").intValue = 50;
+                floors.GetArrayElementAtIndex(1).objectReferenceValue = zoneFloors[3];
+                serialized.FindProperty("_dustCount").intValue = 80;
                 serialized.FindProperty("_clustersPerFloor").intValue = 2;
                 serialized.ApplyModifiedPropertiesWithoutUndo();
             }
@@ -204,7 +203,7 @@ namespace OverCleaning.EditorTools
 
         // ---------- 스테이지에서 도구와 소파 복사 ----------
 
-        private static void CopyStageObjects(Scene scene, GrimeField grimeField, LitterField litterField)
+        private static void CopyStageObjects(Scene scene, GrimeField grimeField, DustField dustField)
         {
             Scene stage = EditorSceneManager.OpenScene(StageScenePath, OpenSceneMode.Additive);
 
@@ -213,7 +212,7 @@ namespace OverCleaning.EditorTools
             CopyFromStage(stage, scene, "Window Wiper", new Vector3(20f, 0f, 6f),
                 copy => Rewire(copy.GetComponent<Wiper>(), "_grimeField", grimeField));
             CopyFromStage(stage, scene, "Broom", new Vector3(28f, 0f, 6f),
-                copy => Rewire(copy.GetComponent<Broom>(), "_litterField", litterField));
+                copy => Rewire(copy.GetComponent<Broom>(), "_dustField", dustField));
             CopyFromStage(stage, scene, "Sofa", new Vector3(36f, 0f, 7f), null);
 
             EditorSceneManager.CloseScene(stage, true);
@@ -329,45 +328,6 @@ namespace OverCleaning.EditorTools
             serialized.FindProperty("_renderer").objectReferenceValue = quad.GetComponent<Renderer>();
             serialized.ApplyModifiedPropertiesWithoutUndo();
             spots.Add(spot);
-        }
-
-        private static GameObject[] CreateLitters(BoxCollider floor)
-        {
-            Material paper = LoadCleaningMaterial("LitterPaper");
-            Material can = LoadCleaningMaterial("LitterCan");
-            var parent = new GameObject("Litters");
-            var litters = new List<GameObject>();
-            // Collider.bounds는 물리 갱신 전(batchmode의 갓 만든 바닥)에는 0이라 쓰지 않는다.
-            Vector3 center = FloorCenter(floor, out float floorTop);
-            parent.transform.position = new Vector3(center.x, 0f, center.z);
-            Vector2[] offsets =
-            {
-                new Vector2(-2.2f, 2.5f), new Vector2(0.5f, 3.2f), new Vector2(2.2f, 1.8f),
-                new Vector2(-1.5f, -0.8f), new Vector2(1f, -2f), new Vector2(-0.3f, 0.9f),
-            };
-            for (int index = 0; index < offsets.Length; index++)
-            {
-                bool isPaper = index % 2 == 0;
-                GameObject litter = GameObject.CreatePrimitive(
-                    isPaper ? PrimitiveType.Sphere : PrimitiveType.Cylinder);
-                litter.name = isPaper ? $"Litter Paper {index + 1}" : $"Litter Can {index + 1}";
-                Object.DestroyImmediate(litter.GetComponent<Collider>());
-                litter.transform.SetParent(parent.transform);
-                litter.transform.localScale = isPaper
-                    ? new Vector3(0.22f, 0.18f, 0.22f)
-                    : new Vector3(0.14f, 0.11f, 0.14f);
-                litter.transform.position = new Vector3(
-                    center.x + offsets[index].x,
-                    floorTop + (isPaper ? 0.09f : 0.08f),
-                    center.z + offsets[index].y);
-                litter.transform.rotation = isPaper
-                    ? Quaternion.Euler(0f, index * 55f, 0f)
-                    : Quaternion.Euler(90f, index * 55f, 0f);
-                litter.GetComponent<Renderer>().sharedMaterial = isPaper ? paper : can;
-                litters.Add(litter);
-            }
-
-            return litters.ToArray();
         }
 
         // ---------- 공통 도우미 ----------
