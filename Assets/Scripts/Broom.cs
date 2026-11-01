@@ -24,9 +24,14 @@ namespace OverCleaning.InGame
         /// <summary>서버가 정한다. 담은 쓰레기 수. 모두가 같은 숫자를 본다.</summary>
         private readonly NetworkVariable<int> _storedLitter = new NetworkVariable<int>();
 
+        /// <summary>서버가 정한다. 쓸고 있는지. 빗자루질 중 표시를 모두가 본다.</summary>
+        private readonly NetworkVariable<bool> _sweeping = new NetworkVariable<bool>();
+
         private readonly int[] _litterBuffer = new int[16];
         private bool _isSweeping;
         private float _sweepElapsedTime;
+        private float _swingPhase;
+        private Camera _statusCamera;
 
         public int StoredLitterCount => _storedLitter.Value;
 
@@ -44,23 +49,41 @@ namespace OverCleaning.InGame
             _litterField != null && _litterField.isActiveAndEnabled &&
             _litterField.GetLittersInRange(SweepPosition, _sweepRadius, _litterBuffer) > 0;
 
-        /// <summary>쓰레기 옆에서 꾹 누르면 쓸어 담는다.</summary>
-        public override bool CanHoldUse => IsHeld && HasLitterInRange;
+        /// <summary>
+        /// 들고 꾹 누르면 어디서든 빗자루질을 한다. 쓰레기가 없어도 휘저어지는 모습이
+        /// 보여야 쓰는 느낌이 나고, 담기는 범위에 쓰레기가 있을 때만 된다.
+        /// </summary>
+        public override bool CanHoldUse => IsHeld;
 
         public override void BeginHoldUse()
         {
             _isSweeping = true;
             _sweepElapsedTime = 0f;
+            if (IsSpawned && IsHeldByLocalPlayer)
+                SetSweepingRpc(true);
         }
 
         public override void EndHoldUse()
         {
             _isSweeping = false;
+            if (IsSpawned && IsHeldByLocalPlayer)
+                SetSweepingRpc(false);
         }
 
         protected override void OnCarryChanged()
         {
             _isSweeping = false;
+            _swingPhase = 0f;
+            // 내려놓이면 쓸기 표시도 꺼진다. 든 사람이 사라져 RPC가 못 오는 경우의 뒷정리다.
+            if (IsServer && !IsHeld)
+                _sweeping.Value = false;
+        }
+
+        [Rpc(SendTo.Server)]
+        private void SetSweepingRpc(bool sweeping, RpcParams rpcParams = default)
+        {
+            if (IsFromHolder(rpcParams))
+                _sweeping.Value = sweeping;
         }
 
         /// <summary>든 사람이 보는 쪽으로 부드럽게 돈다. 작은 도구라 경로 검사는 하지 않는다.</summary>
@@ -77,7 +100,12 @@ namespace OverCleaning.InGame
         private void LateUpdate()
         {
             // 담을 쓰레기를 고르는 것은 든 사람의 기기만 한다. 각자 고르면 같은 것을 두 번 담는다.
-            if (!_isSweeping || !IsOwner || !IsHeld || _litterField == null)
+            if (!IsOwner || !IsHeld)
+                return;
+
+            UpdateSwing();
+
+            if (!_isSweeping || _litterField == null)
                 return;
 
             _sweepElapsedTime += Time.deltaTime;
@@ -90,6 +118,20 @@ namespace OverCleaning.InGame
             int take = Mathf.Min(count, _littersPerSweep);
             for (int index = 0; index < take; index++)
                 CollectLitterRpc(_litterBuffer[index]);
+        }
+
+        /// <summary>
+        /// 쓸는 동안 빗자루가 좌우로 휘저어진다. 멈추면 제자리로 돌아온다.
+        /// 위치는 NetworkTransform이 나르므로 다른 화면에도 같은 모습이 보인다.
+        /// </summary>
+        private void UpdateSwing()
+        {
+            if (_isSweeping)
+                _swingPhase += Time.deltaTime * 9f;
+            Vector3 target = _isSweeping
+                ? transform.localRotation * new Vector3(Mathf.Sin(_swingPhase) * 0.3f, 0f, 0f)
+                : Vector3.zero;
+            transform.localPosition = Vector3.Lerp(transform.localPosition, target, 0.35f);
         }
 
         /// <summary>담았다고 서버에 알린다. 확정과 전적은 서버가 맡는다.</summary>
@@ -109,12 +151,34 @@ namespace OverCleaning.InGame
 
         private void OnGUI()
         {
+            DrawSweepingStatus();
+
             if (!IsHeldByLocalPlayer)
                 return;
             string hint = _isSweeping ? "쓸어 담는 중..." :
                 HasLitterInRange ? "들기 키 꾹: 쓸어 담기 / 짧게: 내려놓기" :
-                "쓰레기 가까이에서 꾹 누르면 담습니다 (짧게 눌러 내려놓기)";
+                "꾹 누르면 빗자루질을 하고, 쓰레기 근처면 담습니다 (짧게: 내려놓기)";
             GUI.Box(new Rect(16f, 16f, 360f, 48f), $"담은 쓰레기 {StoredLitterCount}\n{hint}");
+        }
+
+        /// <summary>
+        /// 빗자루질 중 표시. 서버가 내려주는 값이라 든 사람뿐 아니라 모든 기기에서 보인다.
+        /// </summary>
+        private void DrawSweepingStatus()
+        {
+            if (!IsSpawned || !_sweeping.Value || !IsHeld)
+                return;
+            if (_statusCamera == null)
+                _statusCamera = Camera.main;
+            if (_statusCamera == null)
+                return;
+
+            Vector3 screenPosition = _statusCamera.WorldToScreenPoint(
+                HolderBody.position + Vector3.up * 2.3f);
+            if (screenPosition.z <= 0f)
+                return;
+            GUI.Box(new Rect(screenPosition.x - 70f, Screen.height - screenPosition.y - 24f, 140f, 24f),
+                "빗자루질 중...");
         }
 
         private void OnDrawGizmosSelected()
