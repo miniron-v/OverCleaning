@@ -1,9 +1,49 @@
 fileFormatVersion: 2
-guid: faf3678217d6d014da0d6392431ff7e5
+guid: 175b7f7cf8dfd7d4aa2884260d55afbd
 ModelImporter:
   serializedVersion: 24501
   internalIDToNameTable: []
-  externalObjects: {}
+  externalObjects:
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: cloth
+    second: {fileID: 2100000, guid: 9af6da8bb3bedc3498adfae2672b5abf, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: hamster_hand
+    second: {fileID: 2100000, guid: 290e598fde8dc09458845ce23955bf47, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: hamster_head
+    second: {fileID: 2100000, guid: 970052a201b173840bc0b833776eccd1, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: hat
+    second: {fileID: 2100000, guid: b35e692dbf67d13458e611d737c4d5a5, type: 2}
+  - first:
+      type: UnityEngine:Texture2D
+      assembly: UnityEngine.CoreModule
+      name: cloth_UV_ver2
+    second: {fileID: 2800000, guid: 4f831fa482f568b499906598f1ce2867, type: 3}
+  - first:
+      type: UnityEngine:Texture2D
+      assembly: UnityEngine.CoreModule
+      name: hamster_hand_ex
+    second: {fileID: 2800000, guid: 8d20b65b2adb1b94aa8044f9250d77c1, type: 3}
+  - first:
+      type: UnityEngine:Texture2D
+      assembly: UnityEngine.CoreModule
+      name: hamster_head_UV_ver3
+    second: {fileID: 2800000, guid: 8626f73343671e4439b79984ec793bdb, type: 3}
+  - first:
+      type: UnityEngine:Texture2D
+      assembly: UnityEngine.CoreModule
+      name: hat_UV_ver2
+    second: {fileID: 2800000, guid: 64fee61f79168934c92ef1d5650a027b, type: 3}
   materials:
     materialImportMode: 2
     materialName: 0

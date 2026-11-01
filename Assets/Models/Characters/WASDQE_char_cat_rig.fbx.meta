@@ -1,5 +1,5 @@
 fileFormatVersion: 2
-guid: 9734bd9e9c9570c4b8544ba2e23f8fe0
+guid: 2dc1f4d56a9521f46b76492051351834
 ModelImporter:
   serializedVersion: 24501
   internalIDToNameTable: []
@@ -7,43 +7,53 @@ ModelImporter:
   - first:
       type: UnityEngine:Material
       assembly: UnityEngine.CoreModule
+      name: cat_hand
+    second: {fileID: 2100000, guid: 39815267d0b79b942aab7069bc99ef66, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: cat_head
+    second: {fileID: 2100000, guid: bfa01959a252d324683c2fc34484fa30, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: cat_tail
+    second: {fileID: 2100000, guid: 9e5247d05631963469448248565569b7, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
       name: cloth
-    second: {fileID: 2100000, guid: 9af6da8bb3bedc3498adfae2672b5abf, type: 2}
-  - first:
-      type: UnityEngine:Material
-      assembly: UnityEngine.CoreModule
-      name: hamster_hand
-    second: {fileID: 2100000, guid: 290e598fde8dc09458845ce23955bf47, type: 2}
-  - first:
-      type: UnityEngine:Material
-      assembly: UnityEngine.CoreModule
-      name: hamster_head
-    second: {fileID: 2100000, guid: 970052a201b173840bc0b833776eccd1, type: 2}
+    second: {fileID: 2100000, guid: 8868ef1feb0704047aae1a516284c856, type: 2}
   - first:
       type: UnityEngine:Material
       assembly: UnityEngine.CoreModule
       name: hat
-    second: {fileID: 2100000, guid: b35e692dbf67d13458e611d737c4d5a5, type: 2}
+    second: {fileID: 2100000, guid: ea0e10c46374d8c49bd5ab62184ca26c, type: 2}
+  - first:
+      type: UnityEngine:Texture2D
+      assembly: UnityEngine.CoreModule
+      name: cat_HandFoot_ex
+    second: {fileID: 2800000, guid: 87a9b8d5e2796f849a12b55cff84e7a7, type: 3}
+  - first:
+      type: UnityEngine:Texture2D
+      assembly: UnityEngine.CoreModule
+      name: cat_head_ex
+    second: {fileID: 2800000, guid: ccc919f0a8e3ea44fae9463cdda67e76, type: 3}
+  - first:
+      type: UnityEngine:Texture2D
+      assembly: UnityEngine.CoreModule
+      name: cat_tail_ex
+    second: {fileID: 2800000, guid: b67900f59f5c9d8459ff0a880f12507a, type: 3}
   - first:
       type: UnityEngine:Texture2D
       assembly: UnityEngine.CoreModule
       name: cloth_UV_ver2
-    second: {fileID: 2800000, guid: e377a358ac3c09040990e581bb88af7c, type: 3}
-  - first:
-      type: UnityEngine:Texture2D
-      assembly: UnityEngine.CoreModule
-      name: hamster_hand_ex
-    second: {fileID: 2800000, guid: 276dfe895adc4c34f9c72a5df623bb85, type: 3}
-  - first:
-      type: UnityEngine:Texture2D
-      assembly: UnityEngine.CoreModule
-      name: hamster_head_UV_ver2
-    second: {fileID: 2800000, guid: b847547258c66794c86e3f77b51a2735, type: 3}
+    second: {fileID: 2800000, guid: 7ebb5f63d284fed49874df1a4f60a817, type: 3}
   - first:
       type: UnityEngine:Texture2D
       assembly: UnityEngine.CoreModule
       name: hat_UV_ver2
-    second: {fileID: 2800000, guid: 7b7a43804cb93c043b942a4987092e42, type: 3}
+    second: {fileID: 2800000, guid: e29ad5813f57cf54f801f508995551a8, type: 3}
   materials:
     materialImportMode: 2
     materialName: 0
@@ -70,36 +80,7 @@ ModelImporter:
     animationWrapMode: 0
     extraExposedTransformPaths: []
     extraUserProperties: []
-    clipAnimations:
-    - serializedVersion: 16
-      name: WALK
-      takeName: WALK
-      internalID: 864546719200000708
-      firstFrame: 0
-      lastFrame: 43
-      wrapMode: 0
-      orientationOffsetY: 0
-      level: 0
-      cycleOffset: 0
-      loop: 0
-      hasAdditiveReferencePose: 0
-      loopTime: 1
-      loopBlend: 0
-      loopBlendOrientation: 0
-      loopBlendPositionY: 0
-      loopBlendPositionXZ: 0
-      keepOriginalOrientation: 0
-      keepOriginalPositionY: 1
-      keepOriginalPositionXZ: 0
-      heightFromFeet: 0
-      mirror: 0
-      bodyMask: 01000000010000000100000001000000010000000100000001000000010000000100000001000000010000000100000001000000
-      curves: []
-      events: []
-      transformMask: []
-      maskType: 3
-      maskSource: {instanceID: 0}
-      additiveReferencePoseFrame: 0
+    clipAnimations: []
     isReadable: 0
   meshes:
     lODScreenPercentages: []
