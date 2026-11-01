@@ -14,6 +14,9 @@ public class PlayerMovement : MonoBehaviour
     /// <summary>이동 속도 배율. 무거운 물건을 들면 ItemCarrier가 낮춰 준다.</summary>
     public float SpeedMultiplier { get; set; } = 1f;
 
+    /// <summary>함께 드는 물건이 거는 속도 배율. 든 물건 배율과 별개로 곱해진다.</summary>
+    public float CoopSpeedMultiplier { get; set; } = 1f;
+
     // 방향별 개별 액션 입력. 키 셔플이 이 액션들의 바인딩을 재배치해도 이동 로직은 그대로다.
     private bool _up, _down, _left, _right;
 
@@ -96,7 +99,8 @@ public class PlayerMovement : MonoBehaviour
 
         // 시작 전 카운트다운 동안은 모두 제자리에 묶인다.
         Vector2 input = OverCleaning.InGame.GameRound.IsMovementLocked ? Vector2.zero : MoveInput;
-        Vector3 movement = new Vector3(input.x, 0f, input.y) * (_moveSpeed * SpeedMultiplier);
+        Vector3 movement = new Vector3(input.x, 0f, input.y) *
+            (_moveSpeed * SpeedMultiplier * CoopSpeedMultiplier);
         if (input.sqrMagnitude > 0f)
             FacingDirection = new Vector3(input.x, 0f, input.y).normalized;
         _rigidbody.linearVelocity = new Vector3(movement.x, _rigidbody.linearVelocity.y, movement.z);

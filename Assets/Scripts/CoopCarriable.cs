@@ -13,11 +13,10 @@ namespace OverCleaning.InGame
     /// NetworkTransform으로 내려보내면 모두 같은 모습을 본다. 한 사람에게 붙이는
     /// CarriableItem과 달리 주인이 없어서 부모도 소유권도 바꾸지 않는다.
     ///
-    /// 든 동안 잡은 사람은 잡은 자리에 붙는다. 제 캐릭터는 제 기기가 움직이므로,
-    /// 붙드는 것도 각자의 기기가 한다. 자리를 벗어나려 하면 줄에 걸린 것처럼 멈추고,
-    /// 물건이 가운데를 따라오는 만큼씩만 나아가므로 무거운 것을 함께 옮기는 느낌이 된다.
+    /// 혼자 잡은 동안은 제자리에 묶인다 — 소파는 꿈쩍도 않는데 사람만 돌아다니면
+    /// 잡은 게 무의미해진다. 다 같이 들면 풀려서 함께 걸으며 옮긴다. 제 캐릭터는
+    /// 제 기기가 움직이므로 묶는 것도 각자의 기기가 한다. 놓으면 바로 풀린다.
     /// </summary>
-    [DefaultExecutionOrder(100)] // PlayerMovement가 속도를 정한 뒤에 붙드는 보정을 한다.
     public sealed class CoopCarriable : NetworkBehaviour, IInteractable
     {
         [Tooltip("함께 들어야 하는 인원.")]
@@ -30,16 +29,19 @@ namespace OverCleaning.InGame
         [Min(0.1f)] [SerializeField] private float _followSharpness = 6f;
         [Tooltip("안내 문구에 쓸 이름.")]
         [SerializeField] private string _itemName = "소파";
-        [Tooltip("든 동안 잡은 자리에서 벗어날 수 있는 거리. 작을수록 딱 붙는다.")]
-        [Min(0.05f)] [SerializeField] private float _tetherRadius = 0.35f;
+        [Tooltip("일부만 잡았을 때 잡은 쪽이 들리는 각도(도). 자리는 그대로고 기울기만 바뀐다.")]
+        [Min(0f)] [SerializeField] private float _partialTiltAngle = 7f;
+        [Tooltip("다 같이 들고 옮기는 동안의 이동 속도 배율. 물건이 따라올 수 있는 만큼만 걷게 한다.")]
+        [Range(0.1f, 1f)] [SerializeField] private float _carrySpeedMultiplier = 0.45f;
 
         /// <summary>잡고 있는 사람들. 서버가 넣고 빼며 모두에게 내려간다.</summary>
         private readonly NetworkList<ulong> _lifterClientIds = new NetworkList<ulong>();
 
         private BoxCollider _bodyCollider;
 
-        /// <summary>서버에서만 쓴다. 내려앉을 높이와, 다 잡힌 순간의 자세.</summary>
+        /// <summary>서버에서만 쓴다. 내려앉을 높이·방향과, 다 잡힌 순간의 자세.</summary>
         private float _restHeight;
+        private Quaternion _restRotation = Quaternion.identity;
         private bool _carryEngaged;
 
         /// <summary>
@@ -51,9 +53,8 @@ namespace OverCleaning.InGame
         private Vector3 _carryLocalOffset;
         private Quaternion _carryLocalRotation;
 
-        /// <summary>이 기기에서만 쓴다. 내 캐릭터가 붙들려 있는지와, 물건 기준 잡은 자리.</summary>
-        private bool _localTethered;
-        private Vector3 _localGrabOffset;
+        /// <summary>이 기기에서만 쓴다. 내 캐릭터에 잡기 효과(묶임·감속·바라보기)를 걸었는지.</summary>
+        private bool _localLifting;
 
         public bool IsFullyLifted => IsSpawned && _lifterClientIds.Count >= _requiredLifters;
 
@@ -99,8 +100,10 @@ namespace OverCleaning.InGame
 
         public override void OnNetworkSpawn()
         {
-            if (IsServer)
-                _restHeight = transform.position.y;
+            if (!IsServer)
+                return;
+            _restHeight = transform.position.y;
+            _restRotation = transform.rotation;
         }
 
         public void Interact()
@@ -143,14 +146,58 @@ namespace OverCleaning.InGame
                 return;
             }
 
-            // 인원이 빠지면 그 자리에 내려앉는다.
-            _carryEngaged = false;
-            Vector3 position = transform.position;
-            if (position.y > _restHeight + 0.001f)
+            if (_carryEngaged)
             {
-                position.y = Mathf.Lerp(position.y, _restHeight, 1f - Mathf.Exp(-8f * Time.deltaTime));
-                transform.position = position;
+                // 함께 들기가 끝났다. 내려앉은 지금 방향이 새 제자리다.
+                _carryEngaged = false;
+                _restRotation = transform.rotation;
             }
+
+            UpdateRestPose();
+        }
+
+        /// <summary>
+        /// 다 들리기 전의 자세. 일부만 잡았으면 잡은 쪽 모서리가 살짝 들려 "잡혔다"는
+        /// 티를 내고, 아무도 없으면 제자리에 내려앉는다. 자리는 그대로다 — 기울기만 바뀐다.
+        /// </summary>
+        private void UpdateRestPose()
+        {
+            Quaternion targetRotation = _restRotation;
+            float targetHeight = _restHeight;
+
+            if (_lifterClientIds.Count > 0)
+            {
+                Vector3 midpoint = Vector3.zero;
+                int counted = 0;
+                for (int index = 0; index < _lifterClientIds.Count; index++)
+                {
+                    Rigidbody body = FindPlayerBody(_lifterClientIds[index]);
+                    if (body == null)
+                        continue;
+                    midpoint += body.position;
+                    counted++;
+                }
+
+                if (counted > 0)
+                {
+                    Vector3 towardLifter = midpoint / counted - transform.position;
+                    towardLifter.y = 0f;
+                    if (towardLifter.sqrMagnitude > 0.0001f)
+                    {
+                        // 잡은 쪽이 올라가는 축으로 기울이고, 반대쪽 모서리가
+                        // 바닥을 파고들지 않게 그만큼 살짝 띄운다.
+                        Vector3 axis = Vector3.Cross(Vector3.up, towardLifter.normalized);
+                        targetRotation = Quaternion.AngleAxis(-_partialTiltAngle, axis) * _restRotation;
+                        targetHeight = _restHeight + 0.08f;
+                    }
+                }
+            }
+
+            float alpha = 1f - Mathf.Exp(-8f * Time.deltaTime);
+            transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, alpha);
+            Vector3 position = transform.position;
+            position.y = Mathf.Lerp(position.y, targetHeight, alpha);
+            transform.position = position;
         }
 
         /// <summary>나갔거나 멀어졌거나 다른 것을 집은 사람은 잡기에서 빠진다.</summary>
@@ -203,7 +250,9 @@ namespace OverCleaning.InGame
                 Vector3 offset = transform.position - midpoint;
                 offset.y = 0f;
                 _carryLocalOffset = inverseAxis * offset;
-                _carryLocalRotation = inverseAxis * transform.rotation;
+                // 일부만 잡아 기울어 있던 자세가 아니라 반듯한 제 자세 기준으로 든다.
+                // 다 잡히면 기운 채 올라가지 않고 수평으로 펴지며 떠오른다.
+                _carryLocalRotation = inverseAxis * _restRotation;
             }
             else if (hasAxis)
             {
@@ -219,48 +268,43 @@ namespace OverCleaning.InGame
         }
 
         /// <summary>
-        /// 든 동안 내 캐릭터를 잡은 자리에 붙들어 둔다. 잡은 순간의 자리에서 여유 반경을
-        /// 벗어나면 바깥으로 나가는 속도를 지우고 자리로 되돌린다. 물건이 가운데를
-        /// 따라오면 자리도 함께 움직이므로, 미는 만큼 물건과 같이 나아가게 된다.
+        /// 잡은 동안 내 캐릭터에 잡기 효과를 건다. 혼자 잡으면 제자리에 묶이고,
+        /// 다 같이 들면 느린 걸음으로 함께 옮긴다. 잡는 내내 물건 쪽을 바라본다.
+        /// 놓거나 잡기가 풀리면(밀려남, 끊김 포함) 바로 모두 풀어 준다.
         /// </summary>
         private void FixedUpdate()
         {
-            bool shouldTether = IsSpawned && IsFullyLifted && IsLocalPlayerLifting;
-            Rigidbody body = shouldTether ? LocalPlayerBody : null;
-            shouldTether &= body != null;
-
-            if (shouldTether != _localTethered)
-            {
-                _localTethered = shouldTether;
-                if (shouldTether)
-                {
-                    // 다 들린 순간의 자리를 물건 기준으로 기억한다. 물건이 돌면 자리도 돈다.
-                    _localGrabOffset = Quaternion.Inverse(transform.rotation) *
-                        (body.position - transform.position);
-                    _localGrabOffset.y = 0f;
-                }
-            }
-
-            if (!_localTethered)
+            bool lifting = IsSpawned && IsLocalPlayerLifting;
+            if (!lifting && !_localLifting)
                 return;
 
-            Vector3 anchor = transform.position + transform.rotation * _localGrabOffset;
-            Vector3 offset = body.position - anchor;
-            offset.y = 0f;
-            float distance = offset.magnitude;
-            if (distance <= _tetherRadius)
+            Rigidbody body = LocalPlayerBody;
+            PlayerMovement movement = body != null ? body.GetComponent<PlayerMovement>() : null;
+            if (movement == null)
                 return;
 
-            // 줄에 걸렸다. 바깥으로 나가는 속도 성분만 지워 줄을 따라 도는 것은 그대로 둔다.
-            Vector3 outward = offset / distance;
-            Vector3 velocity = body.linearVelocity;
-            float outwardSpeed = velocity.x * outward.x + velocity.z * outward.z;
-            if (outwardSpeed > 0f)
-                body.linearVelocity = velocity - outward * outwardSpeed;
+            _localLifting = lifting;
+            // 잠금은 기절·차와 같은 이유별 잠금을 쓴다. 서로의 잠금을 풀지 않는다.
+            movement.SetLocked(this, lifting && !IsFullyLifted);
+            movement.CoopSpeedMultiplier = lifting && IsFullyLifted ? _carrySpeedMultiplier : 1f;
+            if (body.TryGetComponent(out PlayerModelFacing facing))
+                facing.LookAtTarget = lifting ? transform : null;
+        }
 
-            Vector3 corrected = anchor + outward * _tetherRadius;
-            corrected.y = body.position.y;
-            body.position = corrected;
+        public override void OnNetworkDespawn()
+        {
+            // 판이 끝나며 사라져도 효과가 걸린 채 남지 않게 풀어 둔다.
+            if (!_localLifting)
+                return;
+            _localLifting = false;
+            Rigidbody body = LocalPlayerBody;
+            PlayerMovement movement = body != null ? body.GetComponent<PlayerMovement>() : null;
+            if (movement == null)
+                return;
+            movement.SetLocked(this, false);
+            movement.CoopSpeedMultiplier = 1f;
+            if (body.TryGetComponent(out PlayerModelFacing facing))
+                facing.LookAtTarget = null;
         }
 
         private static Rigidbody LocalPlayerBody

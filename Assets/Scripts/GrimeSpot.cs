@@ -23,7 +23,7 @@ namespace OverCleaning.InGame
         [Tooltip("이 얼룩을 지울 수 있는 도구의 종류.")]
         [SerializeField] private GrimeKind _kind = GrimeKind.Floor;
         [Tooltip("다 지워지기까지 받아야 하는 닦기 횟수.")]
-        [Min(1)] [SerializeField] private int _wipesToClean = 5;
+        [Min(1)] [SerializeField] private int _wipesToClean = 8;
         [Tooltip("닦일수록 알파를 낮춰 흐려질 Renderer. 비우면 자식에서 찾는다.")]
         [SerializeField] private Renderer _renderer;
 

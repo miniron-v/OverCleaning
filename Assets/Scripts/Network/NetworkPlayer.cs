@@ -78,11 +78,16 @@ namespace OverCleaning.Network
             _playerInput.SwitchCurrentActionMap(mapName);
         }
 
+        /// <summary>아이템 테스트 씬. 기본 배치로 시작하고 디버그 키도 여기서만 허용한다.</summary>
+        private const string ItemTestSceneName = "ItemTest";
+
         /// <summary>
         /// 스폰되는 순간에는 활성 씬이 아직 이전 씬일 수 있으므로,
         /// 이 오브젝트가 실제로 놓인 씬을 기준으로 판단한다.
         /// </summary>
         private bool IsInRoom => gameObject.scene.name == GameSession.RoomSceneName;
+
+        private bool IsInItemTest => gameObject.scene.name == ItemTestSceneName;
 
         /// <summary>
         /// 대기방에서는 기본 배치를 쓰고, 그 밖의 스테이지 씬에서는 키를 섞는다.
@@ -97,8 +102,12 @@ namespace OverCleaning.Network
                 return;
             }
 
-            // 스테이지마다 씬이 다를 수 있으므로 하나뿐인 대기방을 기준으로 가른다.
-            if (IsInRoom)
+            // 디버그 키(1 셔플, 2 복원)는 테스트 씬에서만 통한다.
+            // 실제 판에서 복원 키가 통하면 셔플이 무의미해진다.
+            _keyShuffle.DebugKeysAllowed = IsInItemTest;
+
+            // 대기방과 테스트 씬은 기본 배치로 시작하고, 스테이지는 셔플한다.
+            if (IsInRoom || IsInItemTest)
                 _keyShuffle.ResetToDefault();
             else
                 _keyShuffle.ShuffleKeys();

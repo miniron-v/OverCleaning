@@ -88,6 +88,12 @@ namespace OverCleaning.InGame
         /// </summary>
         public virtual bool CanHoldUse => false;
 
+        /// <summary>
+        /// 꾹 누르기를 하는 동안 든 사람이 움직이지 못하는가. 빗자루질처럼 제자리에서
+        /// 하는 일이 참을 돌려준다. 보는 방향을 돌리는 것은 그대로 된다.
+        /// </summary>
+        public virtual bool HoldUseLocksMovement => false;
+
         /// <summary>꾹 누르기가 시작됐다. 든 사람의 기기에서 불린다.</summary>
         public virtual void BeginHoldUse()
         {
@@ -95,6 +101,18 @@ namespace OverCleaning.InGame
 
         /// <summary>꾹 누르기가 끝났다. 손을 뗐거나 더는 할 수 없게 된 때다.</summary>
         public virtual void EndHoldUse()
+        {
+        }
+
+        /// <summary>
+        /// 들고서 짧게 눌렀을 때 할 일이 지금 가능한가. 예: 창문닦이는 얼룩 앞에서
+        /// 한 번 닦기. 참이면 그 누름은 내려놓기가 아니라 쓰기가 된다.
+        /// 거짓인 자리에서 짧게 누르면 여느 물건처럼 내려놓는다.
+        /// </summary>
+        public virtual bool CanTapUse => false;
+
+        /// <summary>짧게 누르기가 눌린 순간 불린다. 든 사람의 기기에서 불린다.</summary>
+        public virtual void TapUse()
         {
         }
 

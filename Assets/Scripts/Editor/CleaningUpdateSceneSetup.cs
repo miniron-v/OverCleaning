@@ -13,7 +13,7 @@ namespace OverCleaning.EditorTools
     /// <summary>
     /// 청소 업데이트의 씬 배치를 한 번에 한다. 에디터 없이도 batchmode로 돌릴 수 있다.
     /// 청소기 한 대 복제, 새 도구(물걸레·창문닦이·빗자루) 배치, 벽에 창문과 얼룩,
-    /// 바닥에 얼룩과 쓰레기, GrimeField/LitterField 생성과 GameRound 연결까지.
+    /// 바닥에 얼룩, GrimeField 생성과 GameRound 연결까지.
     /// 씬을 저장하므로 NetworkObject의 GlobalObjectIdHash는 Unity가 정식으로 만든다.
     /// 다시 돌려도 이미 만든 것은 건너뛴다.
     /// </summary>
@@ -45,7 +45,6 @@ namespace OverCleaning.EditorTools
             DuplicateVacuum(vacuum);
 
             GrimeField grimeField = Object.FindFirstObjectByType<GrimeField>();
-            LitterField litterField = Object.FindFirstObjectByType<LitterField>();
             var spots = new List<GrimeSpot>();
             if (grimeField == null)
             {
@@ -53,18 +52,28 @@ namespace OverCleaning.EditorTools
                 CreateFloorStains(floors, spots);
                 grimeField = CreateField<GrimeField>("Grime Field", "_spots", spots.ToArray());
             }
-
-            if (litterField == null)
+            else
             {
-                GameObject[] litters = CreateLitters(floors);
-                litterField = CreateField<LitterField>("Litter Field", "_litters", litters);
+                // 다시 돌리면 모자란 창문만 만들어 기존 얼룩 목록 뒤에 잇는다.
+                CreateWindowsWithStains(mapBounds, spots);
+                if (spots.Count > 0)
+                    AppendSpots(grimeField, spots);
             }
 
-            CreateTools(vacuum, grimeField, litterField);
+            CreateTools(vacuum, dustField, grimeField);
+
+            TrashCan trashCan = Object.FindFirstObjectByType<TrashCan>();
+            DustClump[] dustClumps = EnsureDustClumps(vacuum, trashCan, dustField);
+            Broom broom = Object.FindFirstObjectByType<Broom>();
+            if (broom != null)
+                SetReferenceArray(broom, "_dustClumps", dustClumps);
 
             var round = new SerializedObject(gameRound);
             round.FindProperty("_grimeField").objectReferenceValue = grimeField;
-            round.FindProperty("_litterField").objectReferenceValue = litterField;
+            SerializedProperty clumpArray = round.FindProperty("_dustClumps");
+            clumpArray.arraySize = dustClumps.Length;
+            for (int index = 0; index < dustClumps.Length; index++)
+                clumpArray.GetArrayElementAtIndex(index).objectReferenceValue = dustClumps[index];
             round.ApplyModifiedPropertiesWithoutUndo();
 
             RefreshNetworkObjectHashes();
@@ -92,7 +101,7 @@ namespace OverCleaning.EditorTools
 
         // ---------- 새 도구 ----------
 
-        private static void CreateTools(Vacuum vacuum, GrimeField grimeField, LitterField litterField)
+        private static void CreateTools(Vacuum vacuum, DustField dustField, GrimeField grimeField)
         {
             Material handle = EnsureOpaqueMaterial("ToolHandle", new Color(0.55f, 0.38f, 0.2f));
             Material mopPad = EnsureOpaqueMaterial("MopPad", new Color(0.25f, 0.45f, 0.8f));
@@ -150,11 +159,83 @@ namespace OverCleaning.EditorTools
                 Transform sweepPoint = AddPoint(broom, "Sweep Point", new Vector3(0f, 0.1f, 0.5f));
                 var broomItem = broom.AddComponent<Broom>();
                 var serialized = new SerializedObject(broomItem);
-                serialized.FindProperty("_litterField").objectReferenceValue = litterField;
+                serialized.FindProperty("_dustField").objectReferenceValue = dustField;
                 serialized.FindProperty("_sweepPoint").objectReferenceValue = sweepPoint;
                 serialized.ApplyModifiedPropertiesWithoutUndo();
                 PlaceTool(broom, anchor + new Vector3(-4.5f, 0f, 0f));
             }
+        }
+
+        private const int DustClumpCount = 4;
+
+        /// <summary>
+        /// 빗자루로 쓸어 모은 먼지가 뭉칠 자리들을 만든다. 비어 있으면 보이지 않으므로
+        /// 아무 자리에나 두면 되고, 쓸기 시작하면 쓸던 자리 앞에 깔린다.
+        /// </summary>
+        private static DustClump[] EnsureDustClumps(Vacuum vacuum, TrashCan trashCan, DustField dustField)
+        {
+            // 예전 단일 뭉치는 1번으로 이름을 바꿔 소급한다.
+            GameObject legacy = GameObject.Find("Dust Clump");
+            if (legacy != null)
+                legacy.name = "Dust Clump 1";
+
+            Material body = EnsureOpaqueMaterial("DustClump", new Color(0.35f, 0.28f, 0.2f));
+            var clumps = new DustClump[DustClumpCount];
+            for (int index = 0; index < DustClumpCount; index++)
+            {
+                string name = $"Dust Clump {index + 1}";
+                GameObject existing = GameObject.Find(name);
+                if (existing != null)
+                {
+                    clumps[index] = existing.GetComponent<DustClump>();
+                    continue;
+                }
+
+                GameObject root = CreateToolRoot(name, vacuum,
+                    new Vector3(0.6f, 0.6f, 0.6f), new Vector3(0f, 0.3f, 0f));
+                GameObject ball = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                ball.name = "Clump Ball";
+                Object.DestroyImmediate(ball.GetComponent<Collider>());
+                ball.transform.SetParent(root.transform, false);
+                ball.transform.localScale = Vector3.one * 0.25f;
+                ball.GetComponent<Renderer>().sharedMaterial = body;
+                ball.SetActive(false);
+
+                var clump = root.AddComponent<DustClump>();
+                var serialized = new SerializedObject(clump);
+                serialized.FindProperty("_trashCan").objectReferenceValue = trashCan;
+                serialized.FindProperty("_dustField").objectReferenceValue = dustField;
+                serialized.FindProperty("_ball").objectReferenceValue = ball.transform;
+                serialized.FindProperty("_carrySpeedMultiplier").floatValue = 0.8f;
+                serialized.ApplyModifiedPropertiesWithoutUndo();
+                root.transform.position =
+                    vacuum.transform.position + new Vector3(index * 0.8f, 0f, -1.5f);
+                clumps[index] = clump;
+            }
+
+            return clumps;
+        }
+
+        /// <summary>새 얼룩들을 기존 GrimeField 목록 뒤에 잇는다. 앞 번호들은 그대로다.</summary>
+        private static void AppendSpots(GrimeField grimeField, List<GrimeSpot> spots)
+        {
+            var serialized = new SerializedObject(grimeField);
+            SerializedProperty array = serialized.FindProperty("_spots");
+            int start = array.arraySize;
+            array.arraySize = start + spots.Count;
+            for (int index = 0; index < spots.Count; index++)
+                array.GetArrayElementAtIndex(start + index).objectReferenceValue = spots[index];
+            serialized.ApplyModifiedPropertiesWithoutUndo();
+        }
+
+        private static void SetReferenceArray(Component component, string property, Object[] values)
+        {
+            var serialized = new SerializedObject(component);
+            SerializedProperty array = serialized.FindProperty(property);
+            array.arraySize = values.Length;
+            for (int index = 0; index < values.Length; index++)
+                array.GetArrayElementAtIndex(index).objectReferenceValue = values[index];
+            serialized.ApplyModifiedPropertiesWithoutUndo();
         }
 
         /// <summary>청소기와 같은 구성(BoxCollider + NetworkObject + NetworkTransform)의 빈 도구를 만든다.</summary>
@@ -213,21 +294,30 @@ namespace OverCleaning.EditorTools
             Material pane = EnsureTransparentMaterial("WindowPane", new Color(0.6f, 0.8f, 0.95f, 0.35f));
             Material windowStain = EnsureTransparentMaterial("WindowStain", new Color(0.35f, 0.3f, 0.2f, 0.85f));
 
-            List<BoxCollider> walls = FindLargeWalls(2);
-            for (int index = 0; index < walls.Count; index++)
+            // 게임 카메라는 남쪽 상공에서 북쪽을 본다. 남쪽을 향한 면만 화면에 보이므로
+            // 창문은 모두 북쪽 벽의 안쪽 면에 일렬로 단다.
+            BoxCollider northWall = FindNorthWall();
+            if (northWall == null)
             {
-                BoxCollider wall = walls[index];
-                Bounds bounds = wall.bounds;
-                // 벽의 얇은 축이 법선이다. 안쪽(맵 중심 쪽) 면에 창문을 붙인다.
-                Vector3 normal = bounds.size.x < bounds.size.z ? Vector3.right : Vector3.forward;
-                float side = Vector3.Dot(mapBounds.center - bounds.center, normal) >= 0f ? 1f : -1f;
-                normal *= side;
-                Vector3 surface = bounds.center + normal * (Vector3.Scale(bounds.extents, normal).magnitude + 0.02f);
-                surface.y = 1.4f;
+                Debug.LogWarning("창문을 붙일 북쪽 벽을 찾지 못했습니다.");
+                return;
+            }
+
+            const int windowCount = 3;
+            Bounds wallBounds = northWall.bounds;
+            float z = wallBounds.min.z - 0.02f;
+            for (int index = 0; index < windowCount; index++)
+            {
+                // 이미 있는 창문은 건너뛴다. 다시 돌려도 늘어난 수만큼만 더 생긴다.
+                if (GameObject.Find($"Window {index + 1}") != null)
+                    continue;
+
+                float x = Mathf.Lerp(wallBounds.min.x + 1.5f, wallBounds.max.x - 1.5f,
+                    windowCount > 1 ? (float)index / (windowCount - 1) : 0.5f);
 
                 var window = new GameObject($"Window {index + 1}");
-                window.transform.position = surface;
-                window.transform.rotation = Quaternion.LookRotation(-normal, Vector3.up);
+                window.transform.position = new Vector3(x, 1.4f, z);
+                window.transform.rotation = Quaternion.identity;
 
                 GameObject paneQuad = GameObject.CreatePrimitive(PrimitiveType.Quad);
                 paneQuad.name = "Pane";
@@ -295,51 +385,6 @@ namespace OverCleaning.EditorTools
             spots.Add(spot);
         }
 
-        // ---------- 쓰레기 ----------
-
-        private static GameObject[] CreateLitters(Collider[] floors)
-        {
-            Material paper = EnsureOpaqueMaterial("LitterPaper", new Color(0.93f, 0.92f, 0.88f));
-            Material can = EnsureOpaqueMaterial("LitterCan", new Color(0.75f, 0.3f, 0.25f));
-            var random = new System.Random(20261019);
-
-            var parent = new GameObject("Litters");
-            var litters = new List<GameObject>();
-            for (int attempt = 0; attempt < 160 && litters.Count < 8; attempt++)
-            {
-                Collider floor = floors[litters.Count % floors.Length];
-                Bounds bounds = floor.bounds;
-                var candidate = new Vector3(
-                    Mathf.Lerp(bounds.min.x + 0.5f, bounds.max.x - 0.5f, (float)random.NextDouble()),
-                    bounds.max.y + 1f,
-                    Mathf.Lerp(bounds.min.z + 0.5f, bounds.max.z - 0.5f, (float)random.NextDouble()));
-                if (!floor.Raycast(new Ray(candidate, Vector3.down), out RaycastHit hit, 3f))
-                    continue;
-                if (IsBlocked(hit.point + Vector3.up * 0.2f, new Vector3(0.2f, 0.18f, 0.2f), floor))
-                    continue;
-
-                bool isPaper = litters.Count % 2 == 0;
-                GameObject litter = GameObject.CreatePrimitive(
-                    isPaper ? PrimitiveType.Sphere : PrimitiveType.Cylinder);
-                litter.name = isPaper ? $"Litter Paper {litters.Count + 1}" : $"Litter Can {litters.Count + 1}";
-                Object.DestroyImmediate(litter.GetComponent<Collider>());
-                litter.transform.SetParent(parent.transform);
-                litter.transform.localScale = isPaper
-                    ? new Vector3(0.22f, 0.18f, 0.22f)
-                    : new Vector3(0.14f, 0.11f, 0.14f);
-                litter.transform.position = hit.point + Vector3.up * (isPaper ? 0.09f : 0.08f);
-                litter.transform.rotation = isPaper
-                    ? Quaternion.Euler(0f, (float)random.NextDouble() * 360f, 0f)
-                    : Quaternion.Euler(90f, (float)random.NextDouble() * 360f, 0f);
-                litter.GetComponent<Renderer>().sharedMaterial = isPaper ? paper : can;
-                litters.Add(litter);
-            }
-
-            if (litters.Count < 8)
-                Debug.LogWarning($"쓰레기를 {litters.Count}개만 놓았습니다. 자리가 부족합니다.");
-            return litters.ToArray();
-        }
-
         // ---------- 공통 도우미 ----------
 
         private static T CreateField<T>(string name, string arrayProperty, Object[] entries)
@@ -382,23 +427,24 @@ namespace OverCleaning.EditorTools
             return bounds;
         }
 
-        /// <summary>이름이 Wall로 시작하는 Collider 중 면적이 큰 것부터 돌려준다.</summary>
-        private static List<BoxCollider> FindLargeWalls(int count)
+        /// <summary>
+        /// 북쪽 벽을 찾는다. 이름이 Wall로 시작하는 동서로 긴 Collider 중 가장 북쪽 것.
+        /// 카메라가 남쪽에서 보므로 이 벽의 안쪽 면만 창문이 보이는 자리다.
+        /// </summary>
+        private static BoxCollider FindNorthWall()
         {
-            var walls = new List<BoxCollider>();
+            BoxCollider northWall = null;
             foreach (BoxCollider collider in Object.FindObjectsByType<BoxCollider>(FindObjectsSortMode.None))
             {
-                if (collider.name.StartsWith("Wall") && collider.bounds.size.y > 1f)
-                    walls.Add(collider);
+                if (!collider.name.StartsWith("Wall") || collider.bounds.size.y <= 1f)
+                    continue;
+                if (collider.bounds.size.x <= collider.bounds.size.z)
+                    continue;
+                if (northWall == null || collider.bounds.center.z > northWall.bounds.center.z)
+                    northWall = collider;
             }
 
-            walls.Sort((left, right) =>
-                (right.bounds.size.x + right.bounds.size.z).CompareTo(left.bounds.size.x + left.bounds.size.z));
-            if (walls.Count > count)
-                walls.RemoveRange(count, walls.Count - count);
-            if (walls.Count == 0)
-                Debug.LogWarning("창문을 붙일 벽을 찾지 못했습니다.");
-            return walls;
+            return northWall;
         }
 
         /// <summary>그 자리가 다른 Collider와 겹치는가. 바닥과 자기 자신은 빼고 본다.</summary>

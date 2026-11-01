@@ -15,6 +15,8 @@ namespace OverCleaning.InGame
 
         [Tooltip("이름이 떠 있는 높이. 기절 별보다 위에 둔다.")]
         [SerializeField] private float _height = 2.6f;
+        [Tooltip("이름 글자 크기(px). 기본 라벨(13)보다 크게 둔다.")]
+        [Min(8)] [SerializeField] private int _fontSize = 20;
 
         private PlayerScore _score;
         private Camera _statusCamera;
@@ -43,9 +45,11 @@ namespace OverCleaning.InGame
             {
                 alignment = TextAnchor.MiddleCenter,
                 fontStyle = FontStyle.Bold,
+                fontSize = _fontSize,
             };
 
-            Rect rect = new Rect(screenPosition.x - 80f, Screen.height - screenPosition.y - 11f, 160f, 22f);
+            Rect rect = new Rect(screenPosition.x - 100f, Screen.height - screenPosition.y - _fontSize * 0.75f,
+                200f, _fontSize * 1.5f);
             string nickname = _score.Nickname;
 
             // 밝은 바닥 위에서도 읽히도록 그림자를 깔고 쓴다.

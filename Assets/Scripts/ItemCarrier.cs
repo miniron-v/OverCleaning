@@ -26,13 +26,12 @@ namespace OverCleaning.InGame
 
         private PlayerMovement _playerMovement;
         private PlayerInput _playerInput;
-        private Camera _statusCamera;
         private CarriableItem _heldItem;
         private bool _interactWasPressed;
         private bool _isTrackingPress;
+        private bool _dropOnRelease;
         private float _pressElapsedTime;
         private bool _isHoldUsing;
-        private int _emptyStartCount;
 
         /// <summary>든 물건이 청소기일 때만 값이 있다. 비우기와 HUD는 청소기만의 것이다.</summary>
         private Vacuum HeldVacuum => _heldItem as Vacuum;
@@ -65,7 +64,21 @@ namespace OverCleaning.InGame
             _heldItem = GetComponentInChildren<CarriableItem>();
 
             // 무거운 물건을 들면 느려진다. 내려놓으면 돌아온다.
-            _playerMovement.SpeedMultiplier = _heldItem != null ? _heldItem.CarrySpeedMultiplier : 1f;
+            // 제자리에서 하는 꾹 누르기(빗자루질)를 하는 동안은 아예 묶인다.
+            float speedMultiplier = _heldItem != null ? _heldItem.CarrySpeedMultiplier : 1f;
+            if (_isHoldUsing && _heldItem != null && _heldItem.HoldUseLocksMovement)
+                speedMultiplier = 0f;
+            _playerMovement.SpeedMultiplier = speedMultiplier;
+
+            // 줍기로 시작한 누름도 이어서 추적한다. 주운 그 손으로 계속 꾹 누르면
+            // 바로 꾹 누르기(비우기, 쓸기)가 되고, 다만 뗄 때 내려놓지는 않는다.
+            // 그래야 줍는 탭을 뗄 때 도로 내려놓는 일이 없다.
+            if (isPressed && !_isTrackingPress && _heldItem != null)
+            {
+                _isTrackingPress = true;
+                _dropOnRelease = false;
+                _pressElapsedTime = 0f;
+            }
 
             if (_isTrackingPress)
                 UpdatePress(isPressed);
@@ -83,7 +96,16 @@ namespace OverCleaning.InGame
             if (_heldItem == null)
                 return;
             _isTrackingPress = true;
+            _dropOnRelease = true;
             _pressElapsedTime = 0f;
+
+            // 물건의 짧게 누르기(창문닦이 닦기)가 있으면 이 누름은 그 일이다.
+            // 연타마다 한 번씩 쓰고, 뗄 때 내려놓지 않는다.
+            if (_heldItem.CanTapUse)
+            {
+                _heldItem.TapUse();
+                _dropOnRelease = false;
+            }
         }
 
         private void UpdatePress(bool isPressed)
@@ -98,11 +120,12 @@ namespace OverCleaning.InGame
             if (!isPressed)
             {
                 // 뗐다. 꾹 누르기를 하던 중이면 거기서 멈출 뿐 내려놓지 않고,
-                // 짧게 눌렀다 뗀 것이면 내려놓는다.
+                // 짧게 눌렀다 뗀 것이면 내려놓는다. 줍기나 짧게 쓰기로 시작한
+                // 누름은 내려놓기가 아니다.
                 bool wasHoldUsing = _isHoldUsing;
                 StopHoldUse();
                 _isTrackingPress = false;
-                if (!wasHoldUsing && _pressElapsedTime < _holdThreshold)
+                if (!wasHoldUsing && _dropOnRelease && _pressElapsedTime < _holdThreshold)
                     _heldItem.RequestDrop();
                 return;
             }
@@ -119,8 +142,6 @@ namespace OverCleaning.InGame
         private void BeginHoldUse()
         {
             _isHoldUsing = true;
-            // 비우기 진행 표시는 청소기만의 것이라 시작 수량도 청소기일 때만 받아 둔다.
-            _emptyStartCount = HeldVacuum != null ? HeldVacuum.StoredDustCount : 0;
             _heldItem.BeginHoldUse();
         }
 
@@ -151,7 +172,9 @@ namespace OverCleaning.InGame
             if (vacuum == null)
                 return;
 
-            string status = _isHoldUsing ? "먼지통 비우는 중" :
+            // 비우는 중 표시는 서버가 내려주는 값이라 모두가 같은 것을 본다.
+            // 머리 위 진행 막대는 Vacuum이 모든 기기에서 그린다.
+            string status = vacuum.IsEmptying ? "먼지통 비우는 중" :
                 vacuum.IsFull ? "먼지통 가득 참 — 비워주세요" :
                 vacuum.IsRunning ? "청소 중" : "작동 정지";
             string hint = vacuum.StoredDustCount == 0 ? "먼지통이 비어 있습니다 (짧게 눌러 내려놓기)" :
@@ -160,35 +183,6 @@ namespace OverCleaning.InGame
             GUI.Box(new Rect(16f, 16f, 360f, 72f),
                 $"먼지통 {vacuum.StoredDustCount}/{vacuum.DustCapacity}" +
                 $" (흡입 중: {vacuum.ReservedDustCount})\n{status}\n{hint}");
-            DrawEmptyingProgress();
-        }
-
-        private void DrawEmptyingProgress()
-        {
-            if (!_isHoldUsing)
-                return;
-            if (_statusCamera == null)
-                _statusCamera = Camera.main;
-            if (_statusCamera == null)
-                return;
-
-            Vector3 screenPosition = _statusCamera.WorldToScreenPoint(transform.position + Vector3.up * 2.3f);
-            if (screenPosition.z <= 0f)
-                return;
-
-            // 시작 수량 대비 얼마나 빠져나갔는가. 수량은 서버가 깎아 내려주는 값이다.
-            float progress = _emptyStartCount > 0
-                ? 1f - (float)HeldVacuum.StoredDustCount / _emptyStartCount
-                : 1f;
-            float left = screenPosition.x - 75f;
-            float top = Screen.height - screenPosition.y - 40f;
-            GUI.Box(new Rect(left, top, 150f, 40f), "먼지통 비우는 중...");
-            Color previousColor = GUI.color;
-            GUI.color = Color.gray;
-            GUI.DrawTexture(new Rect(left + 8f, top + 25f, 134f, 8f), Texture2D.whiteTexture);
-            GUI.color = Color.green;
-            GUI.DrawTexture(new Rect(left + 8f, top + 25f, 134f * progress, 8f), Texture2D.whiteTexture);
-            GUI.color = previousColor;
         }
     }
 }

@@ -651,6 +651,30 @@ namespace OverCleaning.InGame
             _suctionStates[RemainingDustCount] = default;
         }
 
+        /// <summary>
+        /// 범위 안에서 아직 흡입 중이 아닌 먼지의 번호를 담아 주고 그 수를 돌려준다.
+        /// 빗자루처럼 번호로 집어 치우는 도구가 쓴다. 번호는 모든 기기에서 같으므로
+        /// 내 기기에서 고른 먼지를 서버와 남의 기기에서도 똑같이 지울 수 있다.
+        /// </summary>
+        public int GetDustIdsInRange(Vector3 center, float radius, int[] buffer)
+        {
+            if (!HasDustArrays)
+                return 0;
+
+            int count = 0;
+            float squaredRadius = radius * radius;
+            for (int index = 0; index < RemainingDustCount && count < buffer.Length; index++)
+            {
+                if (_suctionStates[index].IsActive)
+                    continue;
+                if ((_particles[index].position - center).sqrMagnitude > squaredRadius)
+                    continue;
+                buffer[count++] = _dustIds[index];
+            }
+
+            return count;
+        }
+
         /// <summary>월드 좌표 범위 내 먼지를 최대 지정 수량만큼 즉시 제거하고 실제 제거량을 반환합니다.</summary>
         public int RemoveDustInRange(Vector3 center, float radius, int maximumCount)
         {
