@@ -8,7 +8,7 @@ namespace OverCleaning.Lobby
 {
     /// <summary>
     /// 사무실 의자. 상호작용하면 앉아 책상의 컴퓨터를 보고, 다시 하면 일어나 의자 뒤에 선다.
-    /// 앉은 동안 컴퓨터 화면을 띄운다. 캐릭터 커스텀을 넣을 자리로, 고를 항목은 아직 없다.
+    /// 앉은 동안 컴퓨터 화면을 띄워 캐릭터를 고르게 한다.
     ///
     /// 누가 앉았는지는 서버가 정하고 모든 클라이언트가 같은 사람을 앉혀 그린다.
     /// 앉은 사람의 콜라이더를 모든 화면에서 꺼야 지나가던 사람이 부딪혀 기절시키지 않는다.
@@ -25,6 +25,8 @@ namespace OverCleaning.Lobby
 
         private readonly NetworkVariable<ulong> _occupant = new NetworkVariable<ulong>(NoOccupant);
         private NetworkObject _seatedPlayer;
+        private GUIStyle _boxStyle;
+        private GUIStyle _buttonStyle;
 
         public bool CanInteract => IsSpawned && (_occupant.Value == NoOccupant || IsLocalSeated);
 
@@ -105,13 +107,36 @@ namespace OverCleaning.Lobby
 
         private void OnGUI()
         {
-            if (!IsLocalSeated)
+            if (!IsLocalSeated || _seatedPlayer == null || !_seatedPlayer.TryGetComponent(out PlayerCharacter character))
                 return;
 
-            const float width = 360f;
-            const float height = 200f;
-            GUI.Box(new Rect((Screen.width - width) * 0.5f, (Screen.height - height) * 0.5f, width, height),
-                "컴퓨터\n\n캐릭터 커스텀 (준비 중)");
+            // 크기는 확대(GUI.matrix) 없이 값으로 정한다. 처음 화면(360×200, 기본 글자 13, 기본 여백 4)의 두 배다.
+            const float width = 720f;
+            const float height = 400f;
+            const float buttonWidth = 200f;
+            const float buttonHeight = 120f;
+            const float buttonGap = 20f;
+            const float buttonBottomMargin = 60f;
+            const int fontSize = 26;
+            const int padding = 8;
+
+            _boxStyle ??= new GUIStyle(GUI.skin.box) { fontSize = fontSize, padding = new RectOffset(padding, padding, padding, padding) };
+            _buttonStyle ??= new GUIStyle(GUI.skin.button) { fontSize = fontSize };
+
+            float left = (Screen.width - width) * 0.5f;
+            float top = (Screen.height - height) * 0.5f;
+            GUI.Box(new Rect(left, top, width, height), "컴퓨터\n\n캐릭터 선택", _boxStyle);
+
+            float rowWidth = character.Count * buttonWidth + (character.Count - 1) * buttonGap;
+            float buttonLeft = left + (width - rowWidth) * 0.5f;
+            float buttonTop = top + height - buttonHeight - buttonBottomMargin;
+            for (int index = 0; index < character.Count; index++)
+            {
+                Rect button = new Rect(buttonLeft + index * (buttonWidth + buttonGap), buttonTop, buttonWidth, buttonHeight);
+                bool isSelected = index == PlayerCharacter.LocalIndex;
+                if (GUI.Toggle(button, isSelected, character.GetName(index), _buttonStyle) && !isSelected)
+                    PlayerCharacter.LocalIndex = index;
+            }
         }
     }
 }
