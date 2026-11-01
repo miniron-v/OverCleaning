@@ -203,6 +203,7 @@ MonoBehaviour:
   - {fileID: 1363029099}
   - {fileID: 2099511714}
   - {fileID: 1314850528}
+  _sparkleMaterial: {fileID: 2100000, guid: 8e82229db1a8465cba39e55042d245c5, type: 2}
 --- !u!1 &58971070
 GameObject:
   m_ObjectHideFlags: 0
