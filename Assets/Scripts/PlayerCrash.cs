@@ -1,3 +1,4 @@
+using OverCleaning.Interaction;
 using Unity.Netcode;
 using UnityEngine;
 
@@ -36,6 +37,7 @@ namespace OverCleaning.InGame
         private readonly NetworkVariable<double> _stunnedUntil = new NetworkVariable<double>();
 
         private PlayerMovement _playerMovement;
+        private PlayerInteractor _interactor;
         private Rigidbody _body;
         private DustField _dustField;
         private Camera _statusCamera;
@@ -52,6 +54,7 @@ namespace OverCleaning.InGame
         private void Awake()
         {
             _playerMovement = GetComponent<PlayerMovement>();
+            _interactor = GetComponent<PlayerInteractor>();
             _body = GetComponent<Rigidbody>();
         }
 
@@ -62,12 +65,14 @@ namespace OverCleaning.InGame
             if (!IsOwner || _playerMovement == null)
                 return;
 
-            // 기절 동안 걷기를 멈춘다. 끝나면 돌려준다.
+            // 기절 동안 걷기와 상호작용을 멈춘다. 끝나면 돌려준다.
             bool frozen = IsMovementFrozen;
             if (frozen == _movementFrozen)
                 return;
             _movementFrozen = frozen;
             _playerMovement.SetLocked(this, frozen);
+            if (_interactor != null)
+                _interactor.enabled = !frozen;
             if (frozen)
                 _playerMovement.ResetInputState();
         }
