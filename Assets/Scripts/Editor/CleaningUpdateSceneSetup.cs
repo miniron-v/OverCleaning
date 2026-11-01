@@ -52,6 +52,13 @@ namespace OverCleaning.EditorTools
                 CreateFloorStains(floors, spots);
                 grimeField = CreateField<GrimeField>("Grime Field", "_spots", spots.ToArray());
             }
+            else
+            {
+                // 다시 돌리면 모자란 창문만 만들어 기존 얼룩 목록 뒤에 잇는다.
+                CreateWindowsWithStains(mapBounds, spots);
+                if (spots.Count > 0)
+                    AppendSpots(grimeField, spots);
+            }
 
             CreateTools(vacuum, dustField, grimeField);
 
@@ -209,6 +216,18 @@ namespace OverCleaning.EditorTools
             return clumps;
         }
 
+        /// <summary>새 얼룩들을 기존 GrimeField 목록 뒤에 잇는다. 앞 번호들은 그대로다.</summary>
+        private static void AppendSpots(GrimeField grimeField, List<GrimeSpot> spots)
+        {
+            var serialized = new SerializedObject(grimeField);
+            SerializedProperty array = serialized.FindProperty("_spots");
+            int start = array.arraySize;
+            array.arraySize = start + spots.Count;
+            for (int index = 0; index < spots.Count; index++)
+                array.GetArrayElementAtIndex(start + index).objectReferenceValue = spots[index];
+            serialized.ApplyModifiedPropertiesWithoutUndo();
+        }
+
         private static void SetReferenceArray(Component component, string property, Object[] values)
         {
             var serialized = new SerializedObject(component);
@@ -275,9 +294,13 @@ namespace OverCleaning.EditorTools
             Material pane = EnsureTransparentMaterial("WindowPane", new Color(0.6f, 0.8f, 0.95f, 0.35f));
             Material windowStain = EnsureTransparentMaterial("WindowStain", new Color(0.35f, 0.3f, 0.2f, 0.85f));
 
-            List<BoxCollider> walls = FindLargeWalls(2);
+            List<BoxCollider> walls = FindLargeWalls(3);
             for (int index = 0; index < walls.Count; index++)
             {
+                // 이미 있는 창문은 건너뛴다. 다시 돌려도 늘어난 수만큼만 더 생긴다.
+                if (GameObject.Find($"Window {index + 1}") != null)
+                    continue;
+
                 BoxCollider wall = walls[index];
                 Bounds bounds = wall.bounds;
                 // 벽의 얇은 축이 법선이다. 안쪽(맵 중심 쪽) 면에 창문을 붙인다.
