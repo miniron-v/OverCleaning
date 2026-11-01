@@ -26,6 +26,11 @@ public class PlayerMovement : MonoBehaviour
     /// </summary>
     public bool IsLocked => _locks.Count > 0;
 
+    /// <summary>
+    /// source 말고 다른 이유로도 막혀 있는지. 차는 운전자를 자기가 묶어 두므로, 그 밖의 이유(기절, 단계 선택 등)로
+    /// 운전자가 묶였을 때만 차도 멈춰야 한다.
+    /// </summary>
+    public bool IsLockedExcept(object source) => _locks.Count > (_locks.Contains(source) ? 1 : 0);
 
     /// <summary>
     /// 이유(source)마다 따로 걷기를 막고 푼다. 기절, 차, 의자, 단계 선택이 서로의 잠금을 풀어 버리지 않게 한다.

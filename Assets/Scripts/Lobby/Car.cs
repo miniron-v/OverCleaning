@@ -315,13 +315,18 @@ namespace OverCleaning.Lobby
             _rigidbody.angularVelocity = Vector3.zero;
         }
 
-        /// <summary>자기가 운전석에 앉았을 때만 자기 방향키 입력을 준다. 아니면 멈춰 있는다.</summary>
+        /// <summary>
+        /// 자기가 운전석에 앉았을 때만 자기 방향키 입력을 준다. 아니면 멈춰 있는다.
+        /// 운전자가 차 말고 다른 이유로 묶이면(기절, 단계 선택 등) 걷지 못하는 것처럼 운전도 못 한다.
+        /// </summary>
         private Vector2 GetDriverInput()
         {
             if (_occupants.Count == 0 || _occupants[0] != NetworkManager.LocalClientId)
                 return Vector2.zero;
             NetworkObject driver = NetworkManager.LocalClient.PlayerObject;
-            return driver != null && driver.TryGetComponent(out PlayerMovement movement) ? movement.MoveInput : Vector2.zero;
+            if (driver == null || !driver.TryGetComponent(out PlayerMovement movement) || movement.IsLockedExcept(this))
+                return Vector2.zero;
+            return movement.MoveInput;
         }
 
         /// <summary>
