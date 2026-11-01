@@ -10,7 +10,7 @@ namespace OverCleaning.Lobby
     /// <summary>
     /// 대기방의 단계 선택 상태를 모든 클라이언트에 맞춘다.
     ///
-    /// 단계 선택을 연 사람이 주도권을 갖고, 그 사람만 시작할 수 있다.
+    /// 단계 선택을 연 사람이 주도권을 갖고, 그 사람만 시작할 수 있다. 주도권을 쥔 동안은 그 사람만 걷지 못한다.
     /// 열 때 고른 스테이지로 고정되며, 주도권이 있는 동안 모든 클라이언트에 같은 화면이 열린다.
     ///
     /// 여는 방법(맵 선택 오브젝트, 버튼 등)은 이 클래스가 알지 못한다.
@@ -161,7 +161,20 @@ namespace OverCleaning.Lobby
             _controllerNickname.Value = default;
         }
 
-        private void OnControllerChanged(ulong previous, ulong current) => StateChanged?.Invoke();
+        private void OnControllerChanged(ulong previous, ulong current)
+        {
+            LockLocalMovement();
+            StateChanged?.Invoke();
+        }
+
+        /// <summary>고르는 사람이 걸어가 버리지 않도록 묶는다. 각자 자기 캐릭터만 묶고 푼다.</summary>
+        private void LockLocalMovement()
+        {
+            NetworkObject player = NetworkManager.SpawnManager.GetLocalPlayerObject();
+            if (player != null && player.TryGetComponent(out PlayerMovement movement))
+                movement.SetLocked(this, IsLocalController);
+        }
+
         private void OnNicknameChanged(FixedString64Bytes previous, FixedString64Bytes current) =>
             StateChanged?.Invoke();
         private void OnStageIndexChanged(int previous, int current) => StateChanged?.Invoke();
