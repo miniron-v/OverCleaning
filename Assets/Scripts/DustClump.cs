@@ -24,6 +24,9 @@ namespace OverCleaning.InGame
         /// <summary>서버가 정한다. 뭉친 먼지 수. 모두가 같은 크기를 본다.</summary>
         private readonly NetworkVariable<int> _storedDust = new NetworkVariable<int>();
 
+        /// <summary>서버에서만 쓴다. 바닥에 놓일 높이. 내려놓을 때 이 높이로 되돌린다.</summary>
+        private float _restHeight;
+
         public int StoredDustCount => _storedDust.Value;
         public int Capacity => _capacity;
         public bool HasSpace => _storedDust.Value < _capacity;
@@ -57,6 +60,8 @@ namespace OverCleaning.InGame
 
         public override void OnNetworkSpawn()
         {
+            if (IsServer)
+                _restHeight = transform.position.y;
             _storedDust.OnValueChanged += OnStoredDustChanged;
             base.OnNetworkSpawn();
             UpdateBody();
@@ -71,7 +76,35 @@ namespace OverCleaning.InGame
         private void OnStoredDustChanged(int previousCount, int newCount) => UpdateBody();
 
         /// <summary>들리거나 놓일 때 Collider가 다시 켜지므로, 빈 몸 숨김도 다시 맞춘다.</summary>
-        protected override void OnCarryChanged() => UpdateBody();
+        protected override void OnCarryChanged()
+        {
+            // 내려놓을 때 든 사람의 손 높이가 아니라 바닥 높이에 놓는다.
+            // 그대로 두면 공이 공중에 뜬 채 남는다.
+            if (IsServer && !IsHeld)
+            {
+                Vector3 position = transform.position;
+                position.y = _restHeight;
+                transform.position = position;
+                Physics.SyncTransforms();
+            }
+
+            UpdateBody();
+        }
+
+        /// <summary>
+        /// 내려놓을 때 공의 크기만큼 사람에게서 밀어 둔다. 몸 바로 앞에 놓으면
+        /// 커진 공이 사람과 겹쳐 물리가 사람을 밀어낸다.
+        /// </summary>
+        protected override Vector3 DropOffset
+        {
+            get
+            {
+                PlayerMovement holder = HolderBody != null ? HolderBody.GetComponent<PlayerMovement>() : null;
+                Vector3 direction = holder != null ? holder.FacingDirection : transform.forward;
+                float radius = _baseDiameter * Mathf.Pow(Mathf.Max(1, StoredDustCount), 1f / 3f) * 0.5f;
+                return direction * (0.55f + radius);
+            }
+        }
 
         /// <summary>수량에 맞춰 몸집을 바꾼다. 비면 숨고, 쌓이면 세제곱근으로 커진다.</summary>
         private void UpdateBody()

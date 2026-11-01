@@ -13,8 +13,9 @@ namespace OverCleaning.InGame
     /// NetworkTransform으로 내려보내면 모두 같은 모습을 본다. 한 사람에게 붙이는
     /// CarriableItem과 달리 주인이 없어서 부모도 소유권도 바꾸지 않는다.
     ///
-    /// 잡은 사람은 잡는 동안 제자리에 묶인다. 제 캐릭터는 제 기기가 움직이므로
-    /// 묶는 것도 각자의 기기가 한다. 놓으면 바로 풀린다.
+    /// 혼자 잡은 동안은 제자리에 묶인다 — 소파는 꿈쩍도 않는데 사람만 돌아다니면
+    /// 잡은 게 무의미해진다. 다 같이 들면 풀려서 함께 걸으며 옮긴다. 제 캐릭터는
+    /// 제 기기가 움직이므로 묶는 것도 각자의 기기가 한다. 놓으면 바로 풀린다.
     /// </summary>
     public sealed class CoopCarriable : NetworkBehaviour, IInteractable
     {
@@ -265,12 +266,12 @@ namespace OverCleaning.InGame
         }
 
         /// <summary>
-        /// 잡는 동안 내 캐릭터를 제자리에 묶는다. 들어 올리는 물건이라 들고 걷지 않는다.
-        /// 놓거나 잡기가 풀리면(밀려남, 끊김 포함) 바로 풀어 준다.
+        /// 혼자 잡은 동안 내 캐릭터를 제자리에 묶는다. 다 같이 들면 풀려서
+        /// 함께 옮길 수 있고, 놓거나 잡기가 풀리면(밀려남, 끊김 포함) 바로 풀어 준다.
         /// </summary>
         private void FixedUpdate()
         {
-            bool shouldLock = IsSpawned && IsLocalPlayerLifting;
+            bool shouldLock = IsSpawned && IsLocalPlayerLifting && !IsFullyLifted;
             if (shouldLock == _localLocked)
                 return;
 
