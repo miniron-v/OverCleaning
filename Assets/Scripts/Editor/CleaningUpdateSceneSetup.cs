@@ -56,7 +56,7 @@ namespace OverCleaning.EditorTools
             CreateTools(vacuum, dustField, grimeField);
 
             TrashCan trashCan = Object.FindFirstObjectByType<TrashCan>();
-            DustClump[] dustClumps = EnsureDustClumps(vacuum, trashCan);
+            DustClump[] dustClumps = EnsureDustClumps(vacuum, trashCan, dustField);
             Broom broom = Object.FindFirstObjectByType<Broom>();
             if (broom != null)
                 SetReferenceArray(broom, "_dustClumps", dustClumps);
@@ -165,7 +165,7 @@ namespace OverCleaning.EditorTools
         /// 빗자루로 쓸어 모은 먼지가 뭉칠 자리들을 만든다. 비어 있으면 보이지 않으므로
         /// 아무 자리에나 두면 되고, 쓸기 시작하면 쓸던 자리 앞에 깔린다.
         /// </summary>
-        private static DustClump[] EnsureDustClumps(Vacuum vacuum, TrashCan trashCan)
+        private static DustClump[] EnsureDustClumps(Vacuum vacuum, TrashCan trashCan, DustField dustField)
         {
             // 예전 단일 뭉치는 1번으로 이름을 바꿔 소급한다.
             GameObject legacy = GameObject.Find("Dust Clump");
@@ -197,6 +197,7 @@ namespace OverCleaning.EditorTools
                 var clump = root.AddComponent<DustClump>();
                 var serialized = new SerializedObject(clump);
                 serialized.FindProperty("_trashCan").objectReferenceValue = trashCan;
+                serialized.FindProperty("_dustField").objectReferenceValue = dustField;
                 serialized.FindProperty("_ball").objectReferenceValue = ball.transform;
                 serialized.FindProperty("_carrySpeedMultiplier").floatValue = 0.8f;
                 serialized.ApplyModifiedPropertiesWithoutUndo();

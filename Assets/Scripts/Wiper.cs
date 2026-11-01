@@ -16,8 +16,8 @@ namespace OverCleaning.InGame
     /// </summary>
     public sealed class Wiper : CarriableItem
     {
-        /// <summary>연타로 꾹 찍는 연출 한 번의 길이(초).</summary>
-        private const float TapDipDuration = 0.18f;
+        /// <summary>연타로 한 번 닦는 연출의 길이(초).</summary>
+        private const float TapDipDuration = 0.25f;
 
         [Tooltip("안내 문구에 쓸 이름. 예: 창문닦이, 물걸레.")]
         [SerializeField] private string _itemName = "물걸레";
@@ -139,7 +139,10 @@ namespace OverCleaning.InGame
             transform.localPosition = Vector3.Lerp(transform.localPosition, target, 0.5f);
         }
 
-        /// <summary>창문닦이를 꾹 찍는 연출. 닦을 때마다 아래로 살짝 내려갔다 돌아온다.</summary>
+        /// <summary>
+        /// 창문을 훔치는 연출. 닦을 때마다 위로 쓸어 올렸다가 아래로 쓸어 내린다.
+        /// 연타하면 위아래로 바쁘게 문지르는 모습이 된다.
+        /// </summary>
         private void UpdateTapDip()
         {
             if (_tapDipRemaining <= 0f && transform.localPosition.sqrMagnitude < 0.000001f)
@@ -147,8 +150,8 @@ namespace OverCleaning.InGame
 
             _tapDipRemaining = Mathf.Max(0f, _tapDipRemaining - Time.deltaTime);
             float progress = 1f - _tapDipRemaining / TapDipDuration;
-            float dip = Mathf.Sin(progress * Mathf.PI) * 0.16f;
-            transform.localPosition = new Vector3(0f, -dip, 0f);
+            float stroke = Mathf.Sin(progress * Mathf.PI * 2f) * 0.22f;
+            transform.localPosition = new Vector3(0f, stroke, 0f);
         }
 
         private void WipeSpotsInRange()

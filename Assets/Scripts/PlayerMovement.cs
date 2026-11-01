@@ -16,6 +16,9 @@ public class PlayerMovement : MonoBehaviour
     /// <summary>소파를 드는 동안처럼 제자리에 묶였는지. 건 쪽이 책임지고 푼다.</summary>
     public bool MovementLocked { get; set; }
 
+    /// <summary>함께 드는 물건이 거는 속도 배율. 든 물건 배율과 별개로 곱해진다.</summary>
+    public float CoopSpeedMultiplier { get; set; } = 1f;
+
     // 방향별 개별 액션 입력. 키 셔플이 이 액션들의 바인딩을 재배치해도 이동 로직은 그대로다.
     private bool _up, _down, _left, _right;
 
@@ -66,7 +69,8 @@ public class PlayerMovement : MonoBehaviour
         Vector2 input = MovementLocked || OverCleaning.InGame.GameRound.IsMovementLocked
             ? Vector2.zero
             : MoveInput;
-        Vector3 movement = new Vector3(input.x, 0f, input.y) * (_moveSpeed * SpeedMultiplier);
+        Vector3 movement = new Vector3(input.x, 0f, input.y) *
+            (_moveSpeed * SpeedMultiplier * CoopSpeedMultiplier);
         if (input.sqrMagnitude > 0f)
             FacingDirection = new Vector3(input.x, 0f, input.y).normalized;
         _rigidbody.linearVelocity = new Vector3(movement.x, _rigidbody.linearVelocity.y, movement.z);

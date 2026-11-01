@@ -245,7 +245,11 @@ namespace OverCleaning.EditorTools
             {
                 CopyFromStage(stage, scene, $"Dust Clump {index + 1}",
                     new Vector3(29f + index * 0.8f, 0f, 7.5f),
-                    copy => Rewire(copy.GetComponent<DustClump>(), "_trashCan", FindInScene<TrashCan>(scene)));
+                    copy =>
+                    {
+                        Rewire(copy.GetComponent<DustClump>(), "_trashCan", FindInScene<TrashCan>(scene));
+                        Rewire(copy.GetComponent<DustClump>(), "_dustField", FindInScene<DustField>(scene));
+                    });
             }
 
             // 빗자루와 뭉치들을 잇는다. 스테이지 씬이 함께 열려 있으므로 이 씬의 것만 찾는다.

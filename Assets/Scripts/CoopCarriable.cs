@@ -31,6 +31,8 @@ namespace OverCleaning.InGame
         [SerializeField] private string _itemName = "소파";
         [Tooltip("일부만 잡았을 때 잡은 쪽이 들리는 각도(도). 자리는 그대로고 기울기만 바뀐다.")]
         [Min(0f)] [SerializeField] private float _partialTiltAngle = 7f;
+        [Tooltip("다 같이 들고 옮기는 동안의 이동 속도 배율. 물건이 따라올 수 있는 만큼만 걷게 한다.")]
+        [Range(0.1f, 1f)] [SerializeField] private float _carrySpeedMultiplier = 0.45f;
 
         /// <summary>잡고 있는 사람들. 서버가 넣고 빼며 모두에게 내려간다.</summary>
         private readonly NetworkList<ulong> _lifterClientIds = new NetworkList<ulong>();
@@ -51,8 +53,8 @@ namespace OverCleaning.InGame
         private Vector3 _carryLocalOffset;
         private Quaternion _carryLocalRotation;
 
-        /// <summary>이 기기에서만 쓴다. 내 캐릭터를 제자리에 묶어 두었는지.</summary>
-        private bool _localLocked;
+        /// <summary>이 기기에서만 쓴다. 내 캐릭터에 잡기 효과(묶임·감속·바라보기)를 걸었는지.</summary>
+        private bool _localLifting;
 
         public bool IsFullyLifted => IsSpawned && _lifterClientIds.Count >= _requiredLifters;
 
@@ -266,41 +268,42 @@ namespace OverCleaning.InGame
         }
 
         /// <summary>
-        /// 혼자 잡은 동안 내 캐릭터를 제자리에 묶는다. 다 같이 들면 풀려서
-        /// 함께 옮길 수 있고, 놓거나 잡기가 풀리면(밀려남, 끊김 포함) 바로 풀어 준다.
+        /// 잡은 동안 내 캐릭터에 잡기 효과를 건다. 혼자 잡으면 제자리에 묶이고,
+        /// 다 같이 들면 느린 걸음으로 함께 옮긴다. 잡는 내내 물건 쪽을 바라본다.
+        /// 놓거나 잡기가 풀리면(밀려남, 끊김 포함) 바로 모두 풀어 준다.
         /// </summary>
         private void FixedUpdate()
         {
-            bool shouldLock = IsSpawned && IsLocalPlayerLifting && !IsFullyLifted;
-            if (shouldLock == _localLocked)
+            bool lifting = IsSpawned && IsLocalPlayerLifting;
+            if (!lifting && !_localLifting)
                 return;
 
-            PlayerMovement movement = LocalPlayerMovement;
+            Rigidbody body = LocalPlayerBody;
+            PlayerMovement movement = body != null ? body.GetComponent<PlayerMovement>() : null;
             if (movement == null)
                 return;
-            _localLocked = shouldLock;
-            movement.MovementLocked = shouldLock;
+
+            _localLifting = lifting;
+            movement.MovementLocked = lifting && !IsFullyLifted;
+            movement.CoopSpeedMultiplier = lifting && IsFullyLifted ? _carrySpeedMultiplier : 1f;
+            if (body.TryGetComponent(out PlayerModelFacing facing))
+                facing.LookAtTarget = lifting ? transform : null;
         }
 
         public override void OnNetworkDespawn()
         {
-            // 판이 끝나며 사라져도 묶인 채 남지 않게 풀어 둔다.
-            if (_localLocked)
-            {
-                PlayerMovement movement = LocalPlayerMovement;
-                if (movement != null)
-                    movement.MovementLocked = false;
-                _localLocked = false;
-            }
-        }
-
-        private static PlayerMovement LocalPlayerMovement
-        {
-            get
-            {
-                Rigidbody body = LocalPlayerBody;
-                return body != null ? body.GetComponent<PlayerMovement>() : null;
-            }
+            // 판이 끝나며 사라져도 효과가 걸린 채 남지 않게 풀어 둔다.
+            if (!_localLifting)
+                return;
+            _localLifting = false;
+            Rigidbody body = LocalPlayerBody;
+            PlayerMovement movement = body != null ? body.GetComponent<PlayerMovement>() : null;
+            if (movement == null)
+                return;
+            movement.MovementLocked = false;
+            movement.CoopSpeedMultiplier = 1f;
+            if (body.TryGetComponent(out PlayerModelFacing facing))
+                facing.LookAtTarget = null;
         }
 
         private static Rigidbody LocalPlayerBody
