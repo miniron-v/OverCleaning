@@ -7623,6 +7623,7 @@ MonoBehaviour:
   - {fileID: 1223642014}
   - {fileID: 1281988854}
   - {fileID: 770543336}
+  _spawnOnKey: 1
 --- !u!4 &2041458003
 Transform:
   m_ObjectHideFlags: 0

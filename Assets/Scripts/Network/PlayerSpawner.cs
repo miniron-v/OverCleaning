@@ -1,6 +1,7 @@
 using System.Collections;
 using Unity.Netcode;
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 namespace OverCleaning.Network
 {
@@ -19,7 +20,14 @@ namespace OverCleaning.Network
         [Tooltip("스폰 위치. 비어 있으면 이 오브젝트 자리에 겹쳐서 만든다.")]
         [SerializeField] private Transform[] _spawnPoints;
 
+        [Tooltip("켜면 접속해도 바로 스폰하지 않고, 호스트 기기에서 스폰 키를 누를 때 만든다. 테스트 씬용.")]
+        [SerializeField] private bool _spawnOnKey;
+
+        [Tooltip("스폰 키. 호스트 기기에서 누르면 아직 없는 모든 접속자의 플레이어를 만든다.")]
+        [SerializeField] private Key _spawnKey = Key.Space;
+
         private NetworkManager _manager;
+        private bool _isServerReady;
 
         private IEnumerator Start()
         {
@@ -44,10 +52,45 @@ namespace OverCleaning.Network
             // 이전 씬의 플레이어가 정리되기를 한 프레임 기다린다.
             // 아직 남아 있으면 이미 있는 것으로 보고 새로 만들지 않는다.
             yield return null;
+            _isServerReady = true;
+
+            // 키 스폰 방식에서는 접속해도 바로 만들지 않는다. 키를 누를 때 모아서 만든다.
+            if (_spawnOnKey)
+                yield break;
 
             _manager.OnClientConnectedCallback += SpawnFor;
             foreach (ulong clientId in _manager.ConnectedClientsIds)
                 SpawnFor(clientId);
+        }
+
+        /// <summary>키 스폰 방식. 호스트 기기에서 키를 누르면 아직 없는 모두를 스폰한다.</summary>
+        private void Update()
+        {
+            if (!_spawnOnKey || !_isServerReady || _manager == null || !_manager.IsServer)
+                return;
+            Keyboard keyboard = Keyboard.current;
+            if (keyboard == null || !keyboard[_spawnKey].wasPressedThisFrame)
+                return;
+
+            foreach (ulong clientId in _manager.ConnectedClientsIds)
+                SpawnFor(clientId);
+        }
+
+        private void OnGUI()
+        {
+            // 아직 안 만든 사람이 있을 때만 호스트 화면에 안내를 띄운다.
+            if (!_spawnOnKey || !_isServerReady || _manager == null || !_manager.IsServer)
+                return;
+            foreach (ulong clientId in _manager.ConnectedClientsIds)
+            {
+                if (!_manager.ConnectedClients.TryGetValue(clientId, out NetworkClient client) ||
+                    client.PlayerObject == null)
+                {
+                    GUI.Box(new Rect((Screen.width - 280f) * 0.5f, Screen.height - 60f, 280f, 30f),
+                        $"{_spawnKey} 키: 플레이어 스폰");
+                    return;
+                }
+            }
         }
 
         private void OnDestroy()
