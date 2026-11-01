@@ -47,13 +47,31 @@ namespace OverCleaning.EditorTools
             SceneManager.SetActiveScene(scene);
 
             RemoveOldLayout();
-            BoxCollider[] zoneFloors = BuildZones(out Transform northWall);
-            PlaceInfrastructure(zoneFloors);
 
-            var spots = new List<GrimeSpot>();
-            CreateWindowsWithStains(northWall, spots);
-            CreateFloorStains(zoneFloors[1], spots);
-            GrimeField grimeField = CreateField<GrimeField>("Grime Field", "_spots", spots.ToArray());
+            BoxCollider[] zoneFloors;
+            Transform northWall;
+            if (GameObject.Find("Zones") == null)
+            {
+                zoneFloors = BuildZones(out northWall);
+                PlaceInfrastructure(zoneFloors);
+            }
+            else
+            {
+                // 다시 돌릴 때는 이미 깔린 구역을 그대로 쓴다. 두 번 깔지 않는다.
+                zoneFloors = FindZoneFloors();
+                GameObject north = GameObject.Find("Wall North");
+                northWall = north != null ? north.transform : null;
+            }
+
+            GrimeField grimeField = Object.FindFirstObjectByType<GrimeField>();
+            if (grimeField == null)
+            {
+                var spots = new List<GrimeSpot>();
+                CreateWindowsWithStains(northWall, spots);
+                CreateFloorStains(zoneFloors[1], spots);
+                grimeField = CreateField<GrimeField>("Grime Field", "_spots", spots.ToArray());
+            }
+
             DustField dustField = Object.FindFirstObjectByType<DustField>();
             CopyStageObjects(scene, grimeField, dustField);
 
@@ -214,8 +232,43 @@ namespace OverCleaning.EditorTools
             CopyFromStage(stage, scene, "Broom", new Vector3(28f, 0f, 6f),
                 copy => Rewire(copy.GetComponent<Broom>(), "_dustField", dustField));
             CopyFromStage(stage, scene, "Sofa", new Vector3(36f, 0f, 7f), null);
+            // 뭉친 먼지는 빗자루 구역에 둔다. 이 씬의 쓰레기통으로 쏟도록 다시 잇는다.
+            CopyFromStage(stage, scene, "Dust Clump", new Vector3(30f, 0f, 7f),
+                copy => Rewire(copy.GetComponent<DustClump>(), "_trashCan", FindInScene<TrashCan>(scene)));
+
+            // 빗자루와 뭉치를 잇는다. 스테이지 씬이 함께 열려 있으므로 이 씬의 것만 찾는다.
+            Broom broom = FindInScene<Broom>(scene);
+            DustClump clump = FindInScene<DustClump>(scene);
+            if (broom != null && clump != null)
+                Rewire(broom, "_dustClump", clump);
 
             EditorSceneManager.CloseScene(stage, true);
+        }
+
+        /// <summary>이 씬 안에서만 찾는다. 추가로 열린 다른 씬의 것을 집지 않는다.</summary>
+        private static T FindInScene<T>(Scene scene) where T : Component
+        {
+            foreach (GameObject root in scene.GetRootGameObjects())
+            {
+                T found = root.GetComponentInChildren<T>(true);
+                if (found != null)
+                    return found;
+            }
+
+            return null;
+        }
+
+        /// <summary>이미 깔려 있는 구역 바닥들을 이름으로 되찾는다.</summary>
+        private static BoxCollider[] FindZoneFloors()
+        {
+            var floors = new BoxCollider[ZoneCount];
+            for (int index = 0; index < ZoneCount; index++)
+            {
+                GameObject floor = GameObject.Find($"Zone Floor {index + 1}");
+                floors[index] = floor != null ? floor.GetComponent<BoxCollider>() : null;
+            }
+
+            return floors;
         }
 
         private static void CopyFromStage(Scene stage, Scene destination, string name,

@@ -30,6 +30,8 @@ namespace OverCleaning.InGame
         [SerializeField] private DustField _dustField;
         [Tooltip("얼룩이 있는 스테이지만 지정한다. 비우면 먼지만으로 판정한다.")]
         [SerializeField] private GrimeField _grimeField;
+        [Tooltip("빗자루로 모은 먼지 뭉치. 지정하면 쓰레기통에 쏟아야 끝난 것으로 친다.")]
+        [SerializeField] private DustClump _dustClump;
         [SerializeField] private GameScreen _gameScreen;
 
         /// <summary>서버가 정한다. 판이 끝나는 서버 시각.</summary>
@@ -112,6 +114,9 @@ namespace OverCleaning.InGame
                 return false;
             if (_grimeField != null && (!_grimeField.IsBuilt || _grimeField.RemainingCount > 0))
                 return false;
+            // 쓸어 모으기만 한 먼지는 아직 치운 것이 아니다. 쓰레기통에 쏟아야 끝난다.
+            if (_dustClump != null && _dustClump.StoredDustCount > 0)
+                return false;
             return true;
         }
 
@@ -161,6 +166,8 @@ namespace OverCleaning.InGame
                 summary += $"   |   먼지 {_dustField.RemainingDustCount}";
             if (_grimeField != null)
                 summary += $"   |   얼룩 {_grimeField.RemainingCount}";
+            if (_dustClump != null && _dustClump.StoredDustCount > 0)
+                summary += $"   |   뭉친 먼지 {_dustClump.StoredDustCount}";
             GUI.Box(new Rect((Screen.width - 360f) * 0.5f, 12f, 360f, 34f), summary);
         }
 

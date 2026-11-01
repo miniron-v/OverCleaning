@@ -64,7 +64,11 @@ namespace OverCleaning.InGame
             _heldItem = GetComponentInChildren<CarriableItem>();
 
             // 무거운 물건을 들면 느려진다. 내려놓으면 돌아온다.
-            _playerMovement.SpeedMultiplier = _heldItem != null ? _heldItem.CarrySpeedMultiplier : 1f;
+            // 제자리에서 하는 꾹 누르기(빗자루질)를 하는 동안은 아예 묶인다.
+            float speedMultiplier = _heldItem != null ? _heldItem.CarrySpeedMultiplier : 1f;
+            if (_isHoldUsing && _heldItem != null && _heldItem.HoldUseLocksMovement)
+                speedMultiplier = 0f;
+            _playerMovement.SpeedMultiplier = speedMultiplier;
 
             // 줍기로 시작한 누름도 이어서 추적한다. 주운 그 손으로 계속 꾹 누르면
             // 바로 꾹 누르기(비우기, 쓸기)가 되고, 다만 뗄 때 내려놓지는 않는다.

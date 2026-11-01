@@ -88,6 +88,12 @@ namespace OverCleaning.InGame
         /// </summary>
         public virtual bool CanHoldUse => false;
 
+        /// <summary>
+        /// 꾹 누르기를 하는 동안 든 사람이 움직이지 못하는가. 빗자루질처럼 제자리에서
+        /// 하는 일이 참을 돌려준다. 보는 방향을 돌리는 것은 그대로 된다.
+        /// </summary>
+        public virtual bool HoldUseLocksMovement => false;
+
         /// <summary>꾹 누르기가 시작됐다. 든 사람의 기기에서 불린다.</summary>
         public virtual void BeginHoldUse()
         {

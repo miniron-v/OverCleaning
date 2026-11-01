@@ -4,17 +4,20 @@ using UnityEngine;
 namespace OverCleaning.InGame
 {
     /// <summary>
-    /// 빗자루. 들고서 들기 키를 꾹 누르고 있으면 빗자루질을 하고, 쓸어 내는 지점
-    /// 근처의 먼지 — 청소기가 빨아들이는 바로 그 먼지 — 를 일정 간격으로 쓸어 치운다.
+    /// 빗자루. 들고서 들기 키를 꾹 누르고 있으면 제자리에 멈춰 빗자루질을 하고,
+    /// 쓸어 내는 지점 근처의 먼지 — 청소기가 빨아들이는 바로 그 먼지 — 를 뭉친 먼지
+    /// 한 곳으로 쓸어 모은다. 모인 뭉치는 들어서 쓰레기통에 버린다.
     /// 짧게 누르면 여느 물건처럼 내려놓는다.
     ///
-    /// 치울 먼지를 고르는 것은 든 사람의 기기, 확정은 서버다. 먼지 번호는 모든
+    /// 모을 먼지를 고르는 것은 든 사람의 기기, 확정은 서버다. 먼지 번호는 모든
     /// 기기에서 같으므로, 내 화면에서 치운 먼지를 서버가 남의 화면에서도 지워 준다.
     /// 청소기와 같은 분담이고, 휘젓는 움직임은 NetworkTransform을 타서 모두가 본다.
     /// </summary>
     public sealed class Broom : CarriableItem
     {
         [SerializeField] private DustField _dustField;
+        [Tooltip("쓸어 모은 먼지가 뭉치는 자리. 비우면 먼지가 모이지 않고 바로 사라진다.")]
+        [SerializeField] private DustClump _dustClump;
         [Tooltip("쓸어 내는 기준 지점. 비우면 물건의 위치를 쓴다.")]
         [SerializeField] private Transform _sweepPoint;
         [Min(0.1f)] [SerializeField] private float _sweepRadius = 1.5f;
@@ -25,9 +28,6 @@ namespace OverCleaning.InGame
         [Tooltip("보는 쪽으로 도는 반응 속도. 클수록 빨리 따라붙는다.")]
         [Min(0.1f)] [SerializeField] private float _aimSmoothing = 10f;
 
-        /// <summary>서버가 정한다. 쓸어 치운 먼지 수. 모두가 같은 숫자를 본다.</summary>
-        private readonly NetworkVariable<int> _sweptDust = new NetworkVariable<int>();
-
         /// <summary>서버가 정한다. 쓸고 있는지. 빗자루질 중 표시를 모두가 본다.</summary>
         private readonly NetworkVariable<bool> _sweeping = new NetworkVariable<bool>();
 
@@ -37,9 +37,10 @@ namespace OverCleaning.InGame
         private float _swingPhase;
         private Camera _statusCamera;
 
-        public int SweptDustCount => _sweptDust.Value;
-
         protected override string ItemName => "빗자루";
+
+        /// <summary>빗자루질은 제자리에서 한다. 쓸 방향은 이동 키로 돌릴 수 있다.</summary>
+        public override bool HoldUseLocksMovement => true;
 
         /// <summary>
         /// 든 사람은 빗자루가 실제로 향한 쪽을 본다. 빗자루가 부드럽게 도는 동안
@@ -124,7 +125,7 @@ namespace OverCleaning.InGame
             {
                 // 내 화면에서 바로 치우고 서버에 알린다. 청소기가 빤 먼지를 알리는 흐름과 같다.
                 _dustField.RemoveDustById(_dustIdBuffer[index]);
-                ReportSweptDustRpc(_dustIdBuffer[index]);
+                ReportSweptDustRpc(_dustIdBuffer[index], SweepPosition);
             }
         }
 
@@ -142,17 +143,28 @@ namespace OverCleaning.InGame
             transform.localPosition = Vector3.Lerp(transform.localPosition, target, 0.35f);
         }
 
-        /// <summary>쓸어 치웠다고 서버에 알린다. 수량 확정과 전적, 남의 화면 정리는 서버가 맡는다.</summary>
+        /// <summary>
+        /// 쓸었다고 서버에 알린다. 먼지는 뭉친 먼지로 옮겨 가 쓸던 자리에 모이고,
+        /// 남의 화면 정리는 서버가 맡는다. 전적은 뭉치를 쓰레기통에 쏟을 때 쌓인다.
+        /// </summary>
         [Rpc(SendTo.Server)]
-        private void ReportSweptDustRpc(int dustId, RpcParams rpcParams = default)
+        private void ReportSweptDustRpc(int dustId, Vector3 gatherPosition, RpcParams rpcParams = default)
         {
             if (!IsFromHolder(rpcParams))
                 return;
 
-            _sweptDust.Value++;
-            PlayerScore score = HolderBody != null ? HolderBody.GetComponent<PlayerScore>() : null;
-            if (score != null)
-                score.ServerAddCleanedDust(1);
+            if (_dustClump != null)
+            {
+                _dustClump.ServerAddDust(1, gatherPosition);
+            }
+            else
+            {
+                // 뭉치는 자리가 없는 씬에서는 쓸리는 즉시 치운 것으로 치고 전적을 준다.
+                PlayerScore score = HolderBody != null ? HolderBody.GetComponent<PlayerScore>() : null;
+                if (score != null)
+                    score.ServerAddCleanedDust(1);
+            }
+
             RemoveDustRpc(dustId);
         }
 
@@ -170,10 +182,11 @@ namespace OverCleaning.InGame
 
             if (!IsHeldByLocalPlayer)
                 return;
-            string hint = _isSweeping ? "쓸어 치우는 중..." :
-                HasDustInRange ? "들기 키 꾹: 쓸어 치우기 / 짧게: 내려놓기" :
-                "꾹 누르면 빗자루질을 하고, 먼지 위에서는 쓸려 나갑니다 (짧게: 내려놓기)";
-            GUI.Box(new Rect(16f, 16f, 360f, 48f), $"쓸어 치운 먼지 {SweptDustCount}\n{hint}");
+            string hint = _isSweeping ? "쓸어 모으는 중... (이동 불가, 방향 키로 돌리기)" :
+                HasDustInRange ? "들기 키 꾹: 제자리에서 쓸어 모으기 / 짧게: 내려놓기" :
+                "먼지 근처에서 꾹 누르면 뭉친 먼지로 쓸어 모읍니다 (짧게: 내려놓기)";
+            string gathered = _dustClump != null ? $"뭉친 먼지 {_dustClump.StoredDustCount}" : "빗자루";
+            GUI.Box(new Rect(16f, 16f, 360f, 48f), $"{gathered}\n{hint}");
         }
 
         /// <summary>
