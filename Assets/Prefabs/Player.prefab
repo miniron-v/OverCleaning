@@ -168,7 +168,7 @@ MonoBehaviour:
     - MoveLeft
     - MoveRight
   _playerMovement: {fileID: 1689613411759416688}
-  _enableDebugKeys: 0
+  _enableDebugKeys: 1
 --- !u!114 &1447354260286792351
 MonoBehaviour:
   m_ObjectHideFlags: 0
