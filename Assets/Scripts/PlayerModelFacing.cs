@@ -10,6 +10,7 @@ namespace OverCleaning.InGame
     /// </summary>
     public sealed class PlayerModelFacing : MonoBehaviour
     {
+        [Tooltip("돌릴 모델. 고를 수 있는 캐릭터 모델을 모두 자식으로 둔다.")]
         [SerializeField] private Transform _model;
         [Min(1f)] [SerializeField] private float _turnSpeed = 720f;
 
@@ -33,11 +34,6 @@ namespace OverCleaning.InGame
         /// </summary>
         public Transform LookAtTarget { get; set; }
 
-        private void Awake()
-        {
-            _animator = _model.GetComponent<Animator>();
-        }
-
         private void OnEnable()
         {
             _previousPosition = transform.position;
@@ -49,6 +45,9 @@ namespace OverCleaning.InGame
             _previousPosition = transform.position;
             bool isWalking = FacingTarget == null &&
                              Vector3.ProjectOnPlane(delta, Vector3.up).magnitude > WalkingSpeed * Time.deltaTime;
+            // 캐릭터를 바꾸면 켜진 모델이 달라지므로, 쓰던 동작이 꺼지면 켜진 모델의 것을 다시 찾는다.
+            if (_animator == null || !_animator.isActiveAndEnabled)
+                _animator = _model.GetComponentInChildren<Animator>();
             if (_animator != null)
                 _animator.SetBool(IsWalkingId, isWalking);
             if (FacingTarget != null)
