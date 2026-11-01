@@ -297,14 +297,16 @@ namespace OverCleaning.EditorTools
         {
             Material stainMaterial = LoadCleaningMaterial("FloorStain");
             var parent = new GameObject("Floor Stains");
-            Vector3 center = floor.bounds.center;
+            // Collider.bounds는 물리 갱신 전(batchmode의 갓 만든 바닥)에는 0이라 쓰지 않는다.
+            Vector3 center = FloorCenter(floor, out float floorTop);
+            parent.transform.position = new Vector3(center.x, 0f, center.z);
             Vector2[] offsets = { new Vector2(-2f, 2f), new Vector2(1.5f, 3f), new Vector2(-1f, -2f), new Vector2(2f, -0.5f) };
             for (int index = 0; index < offsets.Length; index++)
             {
                 var stain = new GameObject($"Floor Stain {index + 1}");
                 stain.transform.SetParent(parent.transform);
                 stain.transform.position = new Vector3(
-                    center.x + offsets[index].x, floor.bounds.max.y + 0.03f, center.z + offsets[index].y);
+                    center.x + offsets[index].x, floorTop + 0.03f, center.z + offsets[index].y);
                 stain.transform.rotation = Quaternion.Euler(90f, index * 70f, 0f);
                 CreateStainQuad(stain.transform, Vector3.zero, 0.7f, GrimeKind.Floor, stainMaterial, spots);
             }
@@ -335,7 +337,9 @@ namespace OverCleaning.EditorTools
             Material can = LoadCleaningMaterial("LitterCan");
             var parent = new GameObject("Litters");
             var litters = new List<GameObject>();
-            Vector3 center = floor.bounds.center;
+            // Collider.bounds는 물리 갱신 전(batchmode의 갓 만든 바닥)에는 0이라 쓰지 않는다.
+            Vector3 center = FloorCenter(floor, out float floorTop);
+            parent.transform.position = new Vector3(center.x, 0f, center.z);
             Vector2[] offsets =
             {
                 new Vector2(-2.2f, 2.5f), new Vector2(0.5f, 3.2f), new Vector2(2.2f, 1.8f),
@@ -354,7 +358,7 @@ namespace OverCleaning.EditorTools
                     : new Vector3(0.14f, 0.11f, 0.14f);
                 litter.transform.position = new Vector3(
                     center.x + offsets[index].x,
-                    floor.bounds.max.y + (isPaper ? 0.09f : 0.08f),
+                    floorTop + (isPaper ? 0.09f : 0.08f),
                     center.z + offsets[index].y);
                 litter.transform.rotation = isPaper
                     ? Quaternion.Euler(0f, index * 55f, 0f)
@@ -381,6 +385,14 @@ namespace OverCleaning.EditorTools
                 array.GetArrayElementAtIndex(index).objectReferenceValue = entries[index];
             serialized.ApplyModifiedPropertiesWithoutUndo();
             return field;
+        }
+
+        /// <summary>바닥 큐브의 중심과 윗면 높이를 Transform에서 계산한다.</summary>
+        private static Vector3 FloorCenter(BoxCollider floor, out float top)
+        {
+            Transform floorTransform = floor.transform;
+            top = floorTransform.position.y + floorTransform.lossyScale.y * 0.5f;
+            return floorTransform.position;
         }
 
         private static Material LoadCleaningMaterial(string name)
