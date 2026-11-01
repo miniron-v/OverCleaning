@@ -98,6 +98,18 @@ namespace OverCleaning.InGame
         {
         }
 
+        /// <summary>
+        /// 들고서 짧게 눌렀을 때 할 일이 지금 가능한가. 예: 창문닦이는 얼룩 앞에서
+        /// 한 번 닦기. 참이면 그 누름은 내려놓기가 아니라 쓰기가 된다.
+        /// 거짓인 자리에서 짧게 누르면 여느 물건처럼 내려놓는다.
+        /// </summary>
+        public virtual bool CanTapUse => false;
+
+        /// <summary>짧게 누르기가 눌린 순간 불린다. 든 사람의 기기에서 불린다.</summary>
+        public virtual void TapUse()
+        {
+        }
+
         /// <summary>안내 문구에 쓸 이름. 예: "청소기".</summary>
         protected abstract string ItemName { get; }
 

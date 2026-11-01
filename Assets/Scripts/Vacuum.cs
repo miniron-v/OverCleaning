@@ -41,7 +41,15 @@ namespace OverCleaning.InGame
         /// <summary>서버가 정한다. 먼지통에 든 확정 수량. 모두가 같은 숫자를 본다.</summary>
         private readonly NetworkVariable<int> _storedDust = new NetworkVariable<int>();
 
+        /// <summary>
+        /// 서버가 정한다. 비우는 중인지와 비우기 시작 수량.
+        /// 비우는 모습(머리 위 진행 막대)을 모든 기기가 같이 본다.
+        /// </summary>
+        private readonly NetworkVariable<bool> _emptying = new NetworkVariable<bool>();
+        private readonly NetworkVariable<int> _emptyStartCount = new NetworkVariable<int>();
+
         private MaterialPropertyBlock _nozzleProperties;
+        private Camera _statusCamera;
 
         /// <summary>
         /// 흡입 연출이 끝나기를 기다리는 수량. 빨아들이는 사람의 기기에만 있다.
@@ -63,6 +71,7 @@ namespace OverCleaning.InGame
         public int ReservedDustCount => _reservedDust;
         public int DustCapacity => _dustCapacity;
         public bool IsFull => _storedDust.Value >= _dustCapacity;
+        public bool IsEmptying => _emptying.Value;
         private bool HasDustSpace => _storedDust.Value + _reservedDust < _dustCapacity;
 
         protected override string ItemName => "청소기";
@@ -219,13 +228,17 @@ namespace OverCleaning.InGame
                 return;
             _serverEmptying = true;
             _emptyAccumulator = 0f;
+            _emptyStartCount.Value = _storedDust.Value;
+            _emptying.Value = true;
         }
 
         [Rpc(SendTo.Server)]
         private void EndEmptyingRpc(RpcParams rpcParams = default)
         {
-            if (IsFromHolder(rpcParams))
-                _serverEmptying = false;
+            if (!IsFromHolder(rpcParams))
+                return;
+            _serverEmptying = false;
+            _emptying.Value = false;
         }
 
         /// <summary>
@@ -238,6 +251,7 @@ namespace OverCleaning.InGame
             if (!CanEmptyDustBin())
             {
                 _serverEmptying = false;
+                _emptying.Value = false;
                 return;
             }
 
@@ -248,9 +262,14 @@ namespace OverCleaning.InGame
 
             _emptyAccumulator -= amount;
             if (_trashCan.TryReceiveDust(HandPosition, HolderBody, amount))
+            {
                 _storedDust.Value -= amount;
+            }
             else
+            {
                 _serverEmptying = false;
+                _emptying.Value = false;
+            }
         }
 
         /// <summary>
@@ -388,6 +407,39 @@ namespace OverCleaning.InGame
             _nozzleRenderer.GetPropertyBlock(_nozzleProperties);
             _nozzleProperties.SetColor(BaseColorId, IsFull ? Color.red : IsRunning ? Color.green : Color.gray);
             _nozzleRenderer.SetPropertyBlock(_nozzleProperties);
+        }
+
+        /// <summary>
+        /// 비우는 모습을 머리 위 진행 막대로 보여 준다. 비우는 중 여부와 수량이
+        /// 서버에서 내려오는 값이라, 든 사람뿐 아니라 모든 기기에서 같이 보인다.
+        /// </summary>
+        private void OnGUI()
+        {
+            if (!IsSpawned || !IsEmptying || !IsHeld)
+                return;
+            if (_statusCamera == null)
+                _statusCamera = Camera.main;
+            if (_statusCamera == null)
+                return;
+
+            Vector3 screenPosition = _statusCamera.WorldToScreenPoint(
+                HolderBody.position + Vector3.up * 2.3f);
+            if (screenPosition.z <= 0f)
+                return;
+
+            // 시작 수량 대비 얼마나 빠져나갔는가. 수량은 서버가 깎아 내려주는 값이다.
+            float progress = _emptyStartCount.Value > 0
+                ? 1f - (float)_storedDust.Value / _emptyStartCount.Value
+                : 1f;
+            float left = screenPosition.x - 75f;
+            float top = Screen.height - screenPosition.y - 40f;
+            GUI.Box(new Rect(left, top, 150f, 40f), "먼지통 비우는 중...");
+            Color previousColor = GUI.color;
+            GUI.color = Color.gray;
+            GUI.DrawTexture(new Rect(left + 8f, top + 25f, 134f, 8f), Texture2D.whiteTexture);
+            GUI.color = Color.green;
+            GUI.DrawTexture(new Rect(left + 8f, top + 25f, 134f * progress, 8f), Texture2D.whiteTexture);
+            GUI.color = previousColor;
         }
 
         private void OnDrawGizmosSelected()
