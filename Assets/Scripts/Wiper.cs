@@ -27,8 +27,8 @@ namespace OverCleaning.InGame
         [Tooltip("닦는 기준 지점. 비우면 물건의 위치를 쓴다.")]
         [SerializeField] private Transform _wipePoint;
         [Min(0.1f)] [SerializeField] private float _wipeRadius = 1.2f;
-        [Tooltip("물걸레 전용. 이만큼(m) 문지를 때마다 근처 얼룩을 한 번씩 닦는다.")]
-        [Min(0.1f)] [SerializeField] private float _rubDistancePerWipe = 0.8f;
+        [Tooltip("물걸레 전용. 이만큼(m) 문지를 때마다 근처 얼룩을 한 번씩 닦는다. 클수록 힘들다.")]
+        [Min(0.1f)] [SerializeField] private float _rubDistancePerWipe = 1.3f;
         [Tooltip("보는 쪽으로 도는 반응 속도. 클수록 빨리 따라붙는다.")]
         [Min(0.1f)] [SerializeField] private float _aimSmoothing = 10f;
 
