@@ -16,7 +16,7 @@ TextureImporter:
     wrapU: 1
     wrapV: 1
     wrapW: 1
-  maxTextureSize: 256
+  maxTextureSize: 512
   textureCompression: 0
   alphaUsage: 1
   alphaIsTransparency: 1
