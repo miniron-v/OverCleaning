@@ -1,3 +1,4 @@
+using Unity.Netcode;
 using UnityEngine;
 
 namespace OverCleaning.InGame
@@ -28,11 +29,12 @@ namespace OverCleaning.InGame
         /// </summary>
         public Transform FacingTarget { get; set; }
 
-        /// <summary>
-        /// 정해지면 이 대상이 있는 쪽을 본다. 예: 함께 드는 소파. 같은 쪽을 보는
-        /// FacingTarget과 달리 대상 자체를 바라보므로, 들고 걸으면 옆걸음이 된다.
-        /// </summary>
-        public Transform LookAtTarget { get; set; }
+        private NetworkObject _networkObject;
+
+        private void Awake()
+        {
+            _networkObject = GetComponent<NetworkObject>();
+        }
 
         private void OnEnable()
         {
@@ -56,13 +58,17 @@ namespace OverCleaning.InGame
                 return;
             }
 
-            // 바라볼 대상(함께 드는 소파)이 있으면 그쪽이 먼저다.
+            // 함께 드는 물건(소파)을 잡고 있으면 그쪽이 먼저다. 잡은 목록이 동기화되는
+            // 값이라 남의 화면에서도 잡은 사람이 물건을 바라본다.
             // 든 물건이 있으면 그쪽을 본다. 물건이 보는 방향을 정해 주면(청소기의 실제 방향)
             // 그 방향을 따르고, 아니면 물건이 놓인 쪽을 본다. 장착한 물건이 몸 중심에 붙어
             // 방향을 알 수 없을 때만 이동 방향을 그대로 쓴다.
             Vector3 direction = Vector3.zero;
-            if (LookAtTarget != null)
-                direction = LookAtTarget.position - transform.position;
+            Transform lifted = _networkObject != null && _networkObject.IsSpawned
+                ? CoopCarriable.FindLiftedBy(_networkObject.OwnerClientId)
+                : null;
+            if (lifted != null)
+                direction = lifted.position - transform.position;
             CarriableItem heldItem = direction.sqrMagnitude < 0.000001f
                 ? GetComponentInChildren<CarriableItem>()
                 : null;

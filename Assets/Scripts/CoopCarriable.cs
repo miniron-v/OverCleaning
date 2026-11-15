@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using OverCleaning.Interaction;
 using Unity.Netcode;
 using UnityEngine;
@@ -41,6 +42,26 @@ namespace OverCleaning.InGame
 
         /// <summary>잡고 있는 사람들. 서버가 넣고 빼며 모두에게 내려간다.</summary>
         private readonly NetworkList<ulong> _lifterClientIds = new NetworkList<ulong>();
+
+        /// <summary>씬에 살아 있는 함께 들기 물건들. 누가 무엇을 잡았는지 어느 기기서나 찾게 한다.</summary>
+        private static readonly List<CoopCarriable> Active = new List<CoopCarriable>();
+
+        /// <summary>
+        /// 이 사람이 잡고 있는 함께 들기 물건. 없으면 null이다. 잡은 목록이 동기화되는
+        /// 값이라 어느 기기에서 물어도 같은 답이 나온다 — 남의 화면에서도 잡은 사람이
+        /// 물건을 바라보게 하는 데 쓴다.
+        /// </summary>
+        public static Transform FindLiftedBy(ulong clientId)
+        {
+            foreach (CoopCarriable carriable in Active)
+            {
+                if (carriable != null && carriable.IsSpawned &&
+                    carriable._lifterClientIds.Contains(clientId))
+                    return carriable.transform;
+            }
+
+            return null;
+        }
 
         private BoxCollider _bodyCollider;
 
@@ -118,6 +139,7 @@ namespace OverCleaning.InGame
 
         public override void OnNetworkSpawn()
         {
+            Active.Add(this);
             if (!IsServer)
                 return;
             _restHeight = transform.position.y;
@@ -303,10 +325,9 @@ namespace OverCleaning.InGame
 
             _localLifting = lifting;
             // 잠금은 기절·차와 같은 이유별 잠금을 쓴다. 서로의 잠금을 풀지 않는다.
+            // 물건을 바라보는 것은 PlayerModelFacing이 동기화된 잡기 목록에서 스스로 읽는다.
             movement.SetLocked(this, lifting && !IsFullyLifted);
             movement.CoopSpeedMultiplier = lifting && IsFullyLifted ? _carrySpeedMultiplier : 1f;
-            if (body.TryGetComponent(out PlayerModelFacing facing))
-                facing.LookAtTarget = lifting ? transform : null;
 
             UpdateTether(body, lifting && IsFullyLifted);
         }
@@ -355,6 +376,8 @@ namespace OverCleaning.InGame
 
         public override void OnNetworkDespawn()
         {
+            Active.Remove(this);
+
             // 판이 끝나며 사라져도 효과가 걸린 채 남지 않게 풀어 둔다.
             _localTethered = false;
             if (!_localLifting)
@@ -366,8 +389,6 @@ namespace OverCleaning.InGame
                 return;
             movement.SetLocked(this, false);
             movement.CoopSpeedMultiplier = 1f;
-            if (body.TryGetComponent(out PlayerModelFacing facing))
-                facing.LookAtTarget = null;
         }
 
         private static Rigidbody LocalPlayerBody
