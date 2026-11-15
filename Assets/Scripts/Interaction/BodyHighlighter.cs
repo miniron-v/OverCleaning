@@ -16,7 +16,7 @@ namespace OverCleaning.Interaction
         private const string MaterialPath = "ItemOutline";
 
         /// <summary>테두리 두께. 메시를 이 배율로 키운 사본이 실루엣 밖으로 삐져나온 폭이다.</summary>
-        private const float OutlineScale = 1.06f;
+        private const float OutlineScale = 1.11f;
 
         private static Material _outlineMaterial;
         private static bool _materialSearched;

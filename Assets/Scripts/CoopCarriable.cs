@@ -345,9 +345,17 @@ namespace OverCleaning.InGame
                 _localTethered = shouldTether;
                 if (shouldTether)
                 {
-                    // 다 들린 순간의 자리를 물건 기준으로 기억한다.
+                    // 잡은 자리는 물건 겉면 바로 옆으로 당겨 잡는다. 멀찍이서 잡았던
+                    // 간격을 그대로 기억하면 떨어진 채 떠 가는 모습이 유지된다.
+                    Vector3 closest = _bodyCollider.ClosestPoint(body.position);
+                    Vector3 away = body.position - closest;
+                    away.y = 0f;
+                    Vector3 direction = away.sqrMagnitude > 0.0001f
+                        ? away.normalized
+                        : (body.position - transform.position).normalized;
+                    Vector3 anchorWorld = closest + direction * 0.35f;
                     _localGrabOffset = Quaternion.Inverse(transform.rotation) *
-                        (body.position - transform.position);
+                        (anchorWorld - transform.position);
                     _localGrabOffset.y = 0f;
                 }
             }
@@ -369,9 +377,10 @@ namespace OverCleaning.InGame
             if (outwardSpeed > 0f)
                 body.linearVelocity = velocity - outward * outwardSpeed;
 
+            // 멀리서 잡아 당겨 붙는 동안 순간이동하지 않도록 일정 속도로 끌려온다.
             Vector3 corrected = anchor + outward * _tetherRadius;
             corrected.y = body.position.y;
-            body.position = corrected;
+            body.position = Vector3.MoveTowards(body.position, corrected, 8f * Time.fixedDeltaTime);
         }
 
         public override void OnNetworkDespawn()

@@ -133,7 +133,22 @@ namespace OverCleaning.InGame
         /// 물건마다 정한 거리보다 멀어도 대상이 아니다.
         /// </summary>
         public virtual bool CanInteract =>
-            isActiveAndEnabled && !IsHeld && !IsLocalPlayerCarrying && IsLocalPlayerInPickUpRange;
+            isActiveAndEnabled && !IsHeld && !IsLocalPlayerCarrying &&
+            !IsLocalPlayerCoopLifting && IsLocalPlayerInPickUpRange;
+
+        /// <summary>
+        /// 함께 들기(소파)를 잡은 손으로는 다른 물건을 집을 수 없다. 대상에서 빠지므로
+        /// 하이라이트도 켜지지 않는다.
+        /// </summary>
+        private static bool IsLocalPlayerCoopLifting
+        {
+            get
+            {
+                NetworkManager manager = NetworkManager.Singleton;
+                return manager != null && manager.IsListening &&
+                       CoopCarriable.FindLiftedBy(manager.LocalClientId) != null;
+            }
+        }
 
         private bool IsLocalPlayerInPickUpRange
         {
@@ -324,6 +339,12 @@ namespace OverCleaning.InGame
             if (holderBody.GetComponentInChildren<CarriableItem>() != null)
             {
                 Debug.Log($"이미 다른 것을 들고 있어 들 수 없습니다({ItemName}).", this);
+                return;
+            }
+            // 함께 들기를 잡은 손으로도 안 된다. 안내를 믿지 않고 서버가 다시 본다.
+            if (CoopCarriable.FindLiftedBy(clientId) != null)
+            {
+                Debug.Log($"함께 드는 물건을 잡고 있어 들 수 없습니다({ItemName}).", this);
                 return;
             }
             // 거리는 서버가 다시 확인한다. 안내만 믿으면 늦은 요청이 멀리서 통한다.
