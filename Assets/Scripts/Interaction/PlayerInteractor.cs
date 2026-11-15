@@ -28,12 +28,28 @@ namespace OverCleaning.Interaction
 
         private void OnDisable()
         {
-            _target = null;
+            SetTarget(null);
         }
 
         private void Update()
         {
-            _target = FindClosestTarget();
+            SetTarget(FindClosestTarget());
+        }
+
+        /// <summary>대상이 바뀌면 이전 것의 하이라이트를 끄고 새것을 켠다.</summary>
+        private void SetTarget(IInteractable target)
+        {
+            if (ReferenceEquals(_target, target))
+                return;
+
+            // 씬이 바뀌며 파괴된 대상일 수 있다. 파괴된 것의 하이라이트는 끌 것도 없다.
+            if (_target is IHighlightable previous &&
+                _target is Component previousComponent && previousComponent != null)
+                previous.SetHighlighted(false);
+
+            _target = target;
+            if (_target is IHighlightable next)
+                next.SetHighlighted(true);
         }
 
         // PlayerInput "Send Messages" 방식: Interact 액션이 수행되면 호출된다.

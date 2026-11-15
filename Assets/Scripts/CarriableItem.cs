@@ -15,7 +15,7 @@ namespace OverCleaning.InGame
     /// 같은 키의 짧게/길게를 가려서 처리한다.
     /// </summary>
     [RequireComponent(typeof(BoxCollider))]
-    public abstract class CarriableItem : NetworkBehaviour, IInteractable
+    public abstract class CarriableItem : NetworkBehaviour, IInteractable, IHighlightable
     {
         /// <summary>아무도 들고 있지 않을 때의 클라이언트 ID.</summary>
         public const ulong NoHolder = ulong.MaxValue;
@@ -57,6 +57,8 @@ namespace OverCleaning.InGame
         protected BoxCollider _bodyCollider;
         protected readonly Collider[] _overlapBuffer = new Collider[32];
         protected readonly RaycastHit[] _castBuffer = new RaycastHit[32];
+
+        private BodyHighlighter _highlighter;
 
         /// <summary>잡는 순간의 간격과 각도. 든 사람이 보는 방향 기준으로 기억해 둔다.</summary>
         private Vector3 _carryGrabOffset;
@@ -131,7 +133,22 @@ namespace OverCleaning.InGame
         /// 물건마다 정한 거리보다 멀어도 대상이 아니다.
         /// </summary>
         public virtual bool CanInteract =>
-            isActiveAndEnabled && !IsHeld && !IsLocalPlayerCarrying && IsLocalPlayerInPickUpRange;
+            isActiveAndEnabled && !IsHeld && !IsLocalPlayerCarrying &&
+            !IsLocalPlayerCoopLifting && IsLocalPlayerInPickUpRange;
+
+        /// <summary>
+        /// 함께 들기(소파)를 잡은 손으로는 다른 물건을 집을 수 없다. 대상에서 빠지므로
+        /// 하이라이트도 켜지지 않는다.
+        /// </summary>
+        private static bool IsLocalPlayerCoopLifting
+        {
+            get
+            {
+                NetworkManager manager = NetworkManager.Singleton;
+                return manager != null && manager.IsListening &&
+                       CoopCarriable.FindLiftedBy(manager.LocalClientId) != null;
+            }
+        }
 
         private bool IsLocalPlayerInPickUpRange
         {
@@ -169,6 +186,13 @@ namespace OverCleaning.InGame
         protected virtual void Awake()
         {
             _bodyCollider = GetComponent<BoxCollider>();
+            _highlighter = new BodyHighlighter(this);
+        }
+
+        /// <summary>내 상호작용 대상으로 잡히면 테두리가 켜진다. 보는 사람 기기만의 연출이다.</summary>
+        public virtual void SetHighlighted(bool highlighted)
+        {
+            _highlighter?.SetHighlighted(highlighted);
         }
 
         public override void OnNetworkSpawn()
@@ -317,6 +341,12 @@ namespace OverCleaning.InGame
                 Debug.Log($"이미 다른 것을 들고 있어 들 수 없습니다({ItemName}).", this);
                 return;
             }
+            // 함께 들기를 잡은 손으로도 안 된다. 안내를 믿지 않고 서버가 다시 본다.
+            if (CoopCarriable.FindLiftedBy(clientId) != null)
+            {
+                Debug.Log($"함께 드는 물건을 잡고 있어 들 수 없습니다({ItemName}).", this);
+                return;
+            }
             // 거리는 서버가 다시 확인한다. 안내만 믿으면 늦은 요청이 멀리서 통한다.
             // 거리만 맞으면 언제나 들 수 있다. 자리가 좁아 물건이 벽에 걸치더라도
             // 드는 것 자체는 막지 않는다. 돌리기는 AimAt이 알아서 벽 앞에서 멈춘다.
@@ -347,6 +377,8 @@ namespace OverCleaning.InGame
 
         /// <summary>
         /// 바라보는 쪽을 먼저 보고, 막혀 있으면 좌우로 각도를 넓혀 가며 놓을 자리를 찾는다.
+        /// 사람과 겹치는 자리는 자리 검사가 거르므로, 가까운 거리부터 몇 단계 멀어지며
+        /// 다시 찾는다 — 놓인 물건이 사람을 밀어내지 않는다.
         /// 사방이 다 막혀 있으면 들려 있던 그 자리에 놓는다. 내려놓기가 거부되는 경우는 없다.
         /// </summary>
         private Vector3 FindDropPosition(Rigidbody holderBody)
@@ -355,13 +387,18 @@ namespace OverCleaning.InGame
             float distance = offset.magnitude;
             Vector3 forward = distance > 0.0001f ? offset / distance : transform.forward;
 
-            foreach (float angle in DropSearchAngles)
+            float baseDistance = Mathf.Max(distance, 0.6f);
+            for (int ring = 0; ring < 3; ring++)
             {
-                Vector3 direction = Quaternion.AngleAxis(angle, Vector3.up) * forward;
-                Vector3 destination = holderBody.position + direction * distance;
-                if (CanPlace(holderBody.position, destination, holderBody) &&
-                    HasGroundSupport(destination))
-                    return destination;
+                float ringDistance = baseDistance + ring * 0.4f;
+                foreach (float angle in DropSearchAngles)
+                {
+                    Vector3 direction = Quaternion.AngleAxis(angle, Vector3.up) * forward;
+                    Vector3 destination = holderBody.position + direction * ringDistance;
+                    if (CanPlace(holderBody.position, destination, holderBody) &&
+                        HasGroundSupport(destination))
+                        return destination;
+                }
             }
 
             return transform.position;

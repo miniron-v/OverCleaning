@@ -42,6 +42,7 @@ namespace OverCleaning.InGame
         [SerializeField] private Texture2D[] _dustTextures = new Texture2D[0];
 
         private readonly Collider[] _overlapBuffer = new Collider[32];
+        private readonly RaycastHit[] _spillCastBuffer = new RaycastHit[16];
         private readonly List<Collider> _activeFloors = new List<Collider>();
         private Vector3[][] _clusterCenters;
         private float _totalFloorArea;
@@ -777,6 +778,9 @@ namespace OverCleaning.InGame
                     Vector3 point = surface + Vector3.up * SurfaceOffset;
                     if (OverlapsObstacle(floor, point, halfExtent))
                         continue;
+                    // 쏟은 자리와 벽으로 갈린 지점이면 버린다. 먼지가 벽 너머로 넘어가지 않는다.
+                    if (SpillCrossesObstacle(center, point))
+                        continue;
 
                     position = point;
                     return true;
@@ -784,6 +788,26 @@ namespace OverCleaning.InGame
             }
 
             return false;
+        }
+
+        /// <summary>
+        /// 쏟은 자리에서 놓일 자리까지 바닥 조금 위로 그은 선이 벽에 막히는지 본다.
+        /// 모든 기기가 같은 씬에서 같은 검사를 하므로 시드 동기화는 그대로 맞는다.
+        /// </summary>
+        private bool SpillCrossesObstacle(Vector3 origin, Vector3 destination)
+        {
+            Vector3 from = origin;
+            from.y = destination.y + 0.25f;
+            Vector3 to = destination + Vector3.up * 0.25f;
+            Vector3 displacement = to - from;
+            float distance = displacement.magnitude;
+            if (distance < 0.0001f)
+                return false;
+
+            int count = Physics.RaycastNonAlloc(from, displacement / distance, _spillCastBuffer,
+                distance, _obstacleLayers, QueryTriggerInteraction.Ignore);
+            // 버퍼가 가득 차면 걸러지지 않은 벽이 있을 수 있으므로 막힌 것으로 본다.
+            return count > 0;
         }
 
         private void OnValidate() => ValidateSettings();

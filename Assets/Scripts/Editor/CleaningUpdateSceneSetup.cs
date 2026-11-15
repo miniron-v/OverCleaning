@@ -325,6 +325,7 @@ namespace OverCleaning.EditorTools
                 paneQuad.transform.SetParent(window.transform, false);
                 paneQuad.transform.localScale = new Vector3(1.6f, 1.1f, 1f);
                 paneQuad.GetComponent<Renderer>().sharedMaterial = pane;
+                paneQuad.GetComponent<Renderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
 
                 // 창문마다 얼룩 두 개. 창문보다 살짝 앞에 띄워 겹쳐 그리지 않는다.
                 CreateStainQuad(window.transform, new Vector3(-0.4f, 0.15f, -0.03f), 0.5f,
@@ -376,6 +377,8 @@ namespace OverCleaning.EditorTools
             quad.transform.localPosition = localPosition;
             quad.transform.localScale = new Vector3(size, size, 1f);
             quad.GetComponent<Renderer>().sharedMaterial = material;
+            // 투명 쿼드의 그림자는 네모난 판으로 드리워 떠 보인다. 끈다.
+            quad.GetComponent<Renderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
 
             var spot = quad.AddComponent<GrimeSpot>();
             var serialized = new SerializedObject(spot);
