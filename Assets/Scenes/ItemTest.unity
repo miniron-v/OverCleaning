@@ -259,7 +259,7 @@ MonoBehaviour:
   _suctionDuration: 0.2
   _dustCapacity: 50
   _emptyDustPerSecond: 10
-  _aimMode: 0
+  _aimMode: 1
   _aimSmoothing: 10
 --- !u!114 &33036083
 MonoBehaviour:
@@ -3018,7 +3018,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::OverCleaning.InGame.CoopCarriable
   ShowTopMostFoldoutHeaderGroup: 1
   _requiredLifters: 2
-  _holdRange: 1.6
+  _holdRange: 2.2
   _liftHeight: 0.25
   _followSharpness: 10
   _itemName: "\uC18C\uD30C"

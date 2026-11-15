@@ -806,7 +806,7 @@ MonoBehaviour:
   _suctionDuration: 0.2
   _dustCapacity: 50
   _emptyDustPerSecond: 10
-  _aimMode: 0
+  _aimMode: 1
   _aimSmoothing: 10
 --- !u!114 &96918801
 MonoBehaviour:
@@ -1794,12 +1794,12 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::OverCleaning.InGame.CoopCarriable
   ShowTopMostFoldoutHeaderGroup: 1
   _requiredLifters: 2
-  _holdRange: 1.6
+  _holdRange: 2.2
   _liftHeight: 0.25
   _followSharpness: 10
   _itemName: "\uC18C\uD30C"
   _partialTiltAngle: 7
-  _carrySpeedMultiplier: 0.45
+  _carrySpeedMultiplier: 0.55
 --- !u!114 &227898590
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -15117,7 +15117,7 @@ MonoBehaviour:
   _suctionDuration: 0.2
   _dustCapacity: 50
   _emptyDustPerSecond: 10
-  _aimMode: 0
+  _aimMode: 1
   _aimSmoothing: 10
 --- !u!114 &2120000004
 MonoBehaviour:

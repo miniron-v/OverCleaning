@@ -17,7 +17,7 @@ namespace OverCleaning.InGame
     /// 잡은 게 무의미해진다. 다 같이 들면 풀려서 함께 걸으며 옮긴다. 제 캐릭터는
     /// 제 기기가 움직이므로 묶는 것도 각자의 기기가 한다. 놓으면 바로 풀린다.
     /// </summary>
-    public sealed class CoopCarriable : NetworkBehaviour, IInteractable
+    public sealed class CoopCarriable : NetworkBehaviour, IInteractable, IHighlightable
     {
         [Tooltip("함께 들어야 하는 인원.")]
         [Min(2)] [SerializeField] private int _requiredLifters = 2;
@@ -32,7 +32,7 @@ namespace OverCleaning.InGame
         [Tooltip("일부만 잡았을 때 잡은 쪽이 들리는 각도(도). 자리는 그대로고 기울기만 바뀐다.")]
         [Min(0f)] [SerializeField] private float _partialTiltAngle = 7f;
         [Tooltip("다 같이 들고 옮기는 동안의 이동 속도 배율. 물건이 따라올 수 있는 만큼만 걷게 한다.")]
-        [Range(0.1f, 1f)] [SerializeField] private float _carrySpeedMultiplier = 0.45f;
+        [Range(0.1f, 1f)] [SerializeField] private float _carrySpeedMultiplier = 0.55f;
 
         /// <summary>잡고 있는 사람들. 서버가 넣고 빼며 모두에게 내려간다.</summary>
         private readonly NetworkList<ulong> _lifterClientIds = new NetworkList<ulong>();
@@ -93,9 +93,18 @@ namespace OverCleaning.InGame
             }
         }
 
+        private BodyHighlighter _highlighter;
+
         private void Awake()
         {
             _bodyCollider = GetComponent<BoxCollider>();
+            _highlighter = new BodyHighlighter(this);
+        }
+
+        /// <summary>내 상호작용 대상으로 잡히면 몸통이 밝아진다. 보는 사람 기기만의 연출이다.</summary>
+        public void SetHighlighted(bool highlighted)
+        {
+            _highlighter?.SetHighlighted(highlighted);
         }
 
         public override void OnNetworkSpawn()
