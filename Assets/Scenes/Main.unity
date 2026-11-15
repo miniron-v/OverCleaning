@@ -959,7 +959,6 @@ MonoBehaviour:
   - MoveDown
   - MoveLeft
   - MoveRight
-  - Interact
   _defaultSlotNames:
   - Slot0
   - Slot1

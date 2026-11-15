@@ -40,7 +40,7 @@ namespace OverCleaning.Input
         [SerializeField]
         private string[] _actionNames =
         {
-            "MoveUp", "MoveDown", "MoveLeft", "MoveRight", "Interact",
+            "MoveUp", "MoveDown", "MoveLeft", "MoveRight",
         };
 
         [Tooltip("기본 배치가 그대로 남는 것을 막는 규칙. " +
