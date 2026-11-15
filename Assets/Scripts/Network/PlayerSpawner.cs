@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Collections.Generic;
 using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -29,6 +30,12 @@ namespace OverCleaning.Network
         private NetworkManager _manager;
         private bool _isServerReady;
 
+        /// <summary>
+        /// 누가 어느 스폰 지점을 쓰고 있는지. clientId는 재접속할 때마다 커지므로
+        /// clientId로 지점을 정하면 나갔다 들어온 사람이 남아 있는 사람과 겹친다.
+        /// </summary>
+        private readonly Dictionary<ulong, int> _pointIndexByClient = new Dictionary<ulong, int>();
+
         private IEnumerator Start()
         {
             _manager = NetworkManager.Singleton;
@@ -53,6 +60,7 @@ namespace OverCleaning.Network
             // 아직 남아 있으면 이미 있는 것으로 보고 새로 만들지 않는다.
             yield return null;
             _isServerReady = true;
+            _manager.OnClientDisconnectCallback += ReleasePoint;
 
             // 키 스폰 방식에서는 접속해도 바로 만들지 않는다. 키를 누를 때 모아서 만든다.
             if (_spawnOnKey)
@@ -96,7 +104,16 @@ namespace OverCleaning.Network
         private void OnDestroy()
         {
             if (_manager != null)
+            {
                 _manager.OnClientConnectedCallback -= SpawnFor;
+                _manager.OnClientDisconnectCallback -= ReleasePoint;
+            }
+        }
+
+        /// <summary>나간 사람의 지점을 비워, 다음에 들어오는 사람이 쓰게 한다.</summary>
+        private void ReleasePoint(ulong clientId)
+        {
+            _pointIndexByClient.Remove(clientId);
         }
 
         private void SpawnFor(ulong clientId)
@@ -120,7 +137,7 @@ namespace OverCleaning.Network
         }
 
         /// <summary>
-        /// 접속 순서대로 스폰 지점을 돌려 쓴다. 지점이 없으면 이 오브젝트 자리에 만든다.
+        /// 아무도 쓰지 않는 스폰 지점 중 앞쪽 것을 준다. 지점이 없으면 이 오브젝트 자리에 만든다.
         /// </summary>
         private void GetSpawnPose(ulong clientId, out Vector3 position, out Quaternion rotation)
         {
@@ -131,7 +148,14 @@ namespace OverCleaning.Network
                 return;
             }
 
-            Transform point = _spawnPoints[(int)(clientId % (ulong)_spawnPoints.Length)];
+            int index = 0;
+            while (_pointIndexByClient.ContainsValue(index))
+                index++;
+            // 지점보다 사람이 많으면 어쩔 수 없이 겹친다.
+            index %= _spawnPoints.Length;
+            _pointIndexByClient[clientId] = index;
+
+            Transform point = _spawnPoints[index];
             position = point.position;
             rotation = point.rotation;
         }
