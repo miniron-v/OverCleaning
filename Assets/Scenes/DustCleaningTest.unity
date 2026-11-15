@@ -9354,6 +9354,10 @@ MonoBehaviour:
   ShowTopMostFoldoutHeaderGroup: 1
   _roundDuration: 180
   _countdownDuration: 3
+  _countdownImages:
+  - {fileID: 2800000, guid: 9e076b69cc26466fae51189d9afe77c7, type: 3}
+  - {fileID: 2800000, guid: ccade85a9c5c4ce7be68fd63ba9a4e0f, type: 3}
+  - {fileID: 2800000, guid: a05daccc833345dca8b9a03de999977d, type: 3}
   _resultDuration: 8
   _dustField: {fileID: 2100000002}
   _grimeField: {fileID: 8560431}

@@ -25,6 +25,8 @@ namespace OverCleaning.InGame
         [Min(10f)] [SerializeField] private float _roundDuration = 180f;
         [Tooltip("시작 전 카운트다운(초). 다 세기 전에는 아무도 움직이지 못한다.")]
         [Min(1f)] [SerializeField] private float _countdownDuration = 3f;
+        [Tooltip("카운트다운 숫자 그림. 0번째가 1이다. 모자란 숫자는 글자로 센다.")]
+        [SerializeField] private Texture2D[] _countdownImages = new Texture2D[0];
         [Tooltip("확인을 누르지 않아도 대기방으로 돌아가는 시간(초). 자리 비운 사람을 위한 보조다.")]
         [Min(1f)] [SerializeField] private float _resultDuration = 20f;
         [SerializeField] private DustField _dustField;
@@ -163,13 +165,28 @@ namespace OverCleaning.InGame
                 DrawResultDashboard();
         }
 
-        /// <summary>시작 전 남은 숫자를 화면 가운데에 크게 센다.</summary>
+        /// <summary>
+        /// 시작 전 남은 숫자를 화면 가운데에 크게 센다. 그림이 있으면 그림으로,
+        /// 초가 바뀐 직후 크게 나타나 줄어드는 맛을 준다.
+        /// </summary>
         private void DrawCountdown()
         {
             int count = Mathf.Max(1, Mathf.CeilToInt((float)RemainingSeconds));
-            GUI.Label(new Rect(0f, Screen.height * 0.5f - 80f, Screen.width, 160f),
-                $"<size=96><b>{count}</b></size>",
-                new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, richText = true });
+            Texture2D image = count - 1 < _countdownImages.Length ? _countdownImages[count - 1] : null;
+            if (image == null)
+            {
+                GUI.Label(new Rect(0f, Screen.height * 0.5f - 80f, Screen.width, 160f),
+                    $"<size=96><b>{count}</b></size>",
+                    new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, richText = true });
+                return;
+            }
+
+            // 초가 넘어가는 순간 1.3배로 나타나 제 크기로 줄어든다.
+            float withinSecond = 1f - ((float)RemainingSeconds - (count - 1));
+            float size = 220f * Mathf.Lerp(1.3f, 1f, Mathf.Clamp01(withinSecond * 4f));
+            GUI.DrawTexture(
+                new Rect((Screen.width - size) * 0.5f, (Screen.height - size) * 0.5f, size, size),
+                image, ScaleMode.ScaleToFit, true);
         }
 
         private void DrawPlayingDashboard()
