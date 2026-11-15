@@ -16,13 +16,13 @@ namespace OverCleaning.Input
     public sealed class KeyShuffleController : MonoBehaviour
     {
         /// <summary>
-        /// 금지 규칙 한 묶음. 여기 적힌 액션들이 '모두' 기본과 같은 배정은 버려진다.
-        /// 묶음 중 일부만 제자리인 것은 허용된다. Unity가 중첩 배열을 직렬화하지 못해 클래스로 감싼다.
+        /// 금지 규칙 한 묶음. 여기 적힌 액션들이 기본 자리들을 그대로 차지하는 배정은
+        /// 서로 맞바꾼 경우까지 버려진다. Unity가 중첩 배열을 직렬화하지 못해 클래스로 감싼다.
         /// </summary>
         [Serializable]
         private sealed class ForbiddenGroup
         {
-            [Tooltip("이 액션들이 전부 기본 값과 같으면 그 배정을 버린다. 개수 제한은 없다.")]
+            [Tooltip("이 액션들이 기본 키 묶음을 그대로 쓰면(순서가 바뀌어도) 그 배정을 버린다. 개수 제한은 없다.")]
             public string[] ActionNames;
         }
 
