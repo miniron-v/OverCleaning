@@ -1,3 +1,4 @@
+using OverCleaning.Input;
 using OverCleaning.Interaction;
 using Unity.Netcode;
 using UnityEngine;
@@ -38,6 +39,7 @@ namespace OverCleaning.InGame
 
         private PlayerMovement _playerMovement;
         private PlayerInteractor _interactor;
+        private KeyShuffleController _keyShuffle;
         private Rigidbody _body;
         private DustField _dustField;
         private Camera _statusCamera;
@@ -55,6 +57,7 @@ namespace OverCleaning.InGame
         {
             _playerMovement = GetComponent<PlayerMovement>();
             _interactor = GetComponent<PlayerInteractor>();
+            _keyShuffle = GetComponent<KeyShuffleController>();
             _body = GetComponent<Rigidbody>();
         }
 
@@ -175,6 +178,10 @@ namespace OverCleaning.InGame
             // RPC는 프레임 초반에 오므로 Update까지 기다리면 그 사이 이동 코드가 튕겨난 속도를 덮어쓴다.
             // 걷기를 막으면 걷던 속도가 멈추므로, 막은 뒤에 튕겨낸다.
             UpdateMovementFrozen();
+
+            // 부딪쳐 정신이 없어 한동안 이동 키가 뒤섞인다.
+            if (_keyShuffle != null)
+                _keyShuffle.ShuffleTemporarily();
 
             direction.y = 0f;
             if (direction.sqrMagnitude > 0.000001f)

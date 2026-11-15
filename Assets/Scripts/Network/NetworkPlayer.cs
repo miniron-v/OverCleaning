@@ -90,9 +90,8 @@ namespace OverCleaning.Network
         private bool IsInItemTest => gameObject.scene.name == ItemTestSceneName;
 
         /// <summary>
-        /// 대기방에서는 기본 배치를 쓰고, 그 밖의 스테이지 씬에서는 키를 섞는다.
+        /// 어느 씬이든 기본 배치로 시작한다. 키는 스테이지에서 부딪쳤을 때만 잠깐 섞인다(PlayerCrash).
         /// 씬을 옮기면 플레이어도 새로 스폰되므로 스폰될 때 한 번만 정하면 된다.
-        /// 위에서 컴포넌트를 켠 뒤라야 셔플이 먹는다.
         /// </summary>
         private void ApplyKeyLayout()
         {
@@ -105,12 +104,7 @@ namespace OverCleaning.Network
             // 디버그 키(1 셔플, 2 복원)는 테스트 씬에서만 통한다.
             // 실제 판에서 복원 키가 통하면 셔플이 무의미해진다.
             _keyShuffle.DebugKeysAllowed = IsInItemTest;
-
-            // 대기방과 테스트 씬은 기본 배치로 시작하고, 스테이지는 셔플한다.
-            if (IsInRoom || IsInItemTest)
-                _keyShuffle.ResetToDefault();
-            else
-                _keyShuffle.ShuffleKeys();
+            _keyShuffle.ResetToDefault();
         }
     }
 }
