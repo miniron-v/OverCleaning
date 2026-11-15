@@ -5,7 +5,7 @@ using UnityEngine.InputSystem;
 namespace OverCleaning.Input
 {
     /// <summary>
-    /// 부딪친 직후 잠깐 이동 키(WASD)를 랜덤 셔플하고, 시간이 지나면 기본 배치로 복원한다.
+    /// 부딪친 직후 혼란 동안 이동 키(WASD)를 랜덤 셔플하고, 시간이 지나면 기본 배치로 복원한다.
     /// 상호작용 키는 셔플 대상이 아니라 늘 제자리다.
     /// 실제 셔플 계산과 바인딩 적용은 KeyShuffle이 맡고, 이 컴포넌트는 Unity 관련만 담당한다:
     /// 인스펙터 설정 읽기, 액션 조회, 셔플 트리거.
@@ -55,9 +55,6 @@ namespace OverCleaning.Input
 
         [Tooltip("셔플 후 입력 상태를 초기화할 대상. 비워두면 같은 오브젝트에서 찾는다.")]
         [SerializeField] private PlayerMovement _playerMovement;
-
-        [Tooltip("부딪친 뒤 키가 섞여 있는 시간(초). 기절 시간도 여기 포함된다.")]
-        [Min(0.1f)] [SerializeField] private float _shuffleDuration = 6f;
 
         [Tooltip("에디터/개발 빌드 전용. 1키로 셔플, 2키로 복원. 허용 씬은 NetworkPlayer가 정한다.")]
         [SerializeField] private bool _enableDebugKeys = true;
@@ -119,16 +116,18 @@ namespace OverCleaning.Input
             _resolvedForbiddenGroups = ResolveForbiddenGroups();
         }
 
-        /// <summary>부딪쳤을 때 호출: 키를 섞고 정해진 시간 뒤에 원복한다. 섞인 중에 또 부딪치면 다시 섞고 시간을 새로 센다.</summary>
-        public void ShuffleTemporarily()
+        /// <summary>
+        /// 혼란: 키를 섞고 seconds초 뒤에 원복한다. 혼란 중에 또 부르면 다시 섞고 시간을 새로 센다.
+        /// 대기방은 다른 맵을 써서 섞어도 티가 안 나므로 아무것도 하지 않는다.
+        /// </summary>
+        public void ShuffleFor(float seconds)
         {
-            // 대기방은 다른 맵을 써서 섞어도 티가 안 나고, 원복 때 걷던 입력만 끊긴다.
             if (_playerInput.currentActionMap != _actionMap)
                 return;
 
             int[] assignment = KeyShuffle.Shuffle(_rng, _slots.Length, _defaultAssignment, _resolvedForbiddenGroups);
             ApplyAssignment(assignment);
-            _restoreTime = Time.time + _shuffleDuration;
+            _restoreTime = Time.time + seconds;
         }
 
         /// <summary>개발자가 정의한 기본 배치로 원복.</summary>
@@ -250,7 +249,7 @@ namespace OverCleaning.Input
                 return;
 
             if (Keyboard.current.digit1Key.wasPressedThisFrame)
-                ShuffleTemporarily();
+                ShuffleFor(float.PositiveInfinity); // 2로 복원할 때까지 섞어 둔다.
             else if (Keyboard.current.digit2Key.wasPressedThisFrame)
                 ResetToDefault();
 #endif

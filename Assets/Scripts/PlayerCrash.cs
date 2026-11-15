@@ -1,5 +1,6 @@
 using OverCleaning.Input;
 using OverCleaning.Interaction;
+using OverCleaning.Network;
 using Unity.Netcode;
 using UnityEngine;
 
@@ -17,6 +18,8 @@ namespace OverCleaning.InGame
     {
         [Tooltip("부딪친 뒤 움직이지 못하는 시간(초).")]
         [Min(0.1f)] [SerializeField] private float _stunDuration = 1.2f;
+        [Tooltip("부딪친 뒤 이동 키가 뒤섞이는 혼란 시간(초). 기절 시간도 여기 포함된다. 그동안 머리 위 별이 계속 돈다.")]
+        [Min(0.1f)] [SerializeField] private float _confusionDuration = 20f;
         [Tooltip("부딪친 반대쪽으로 튕겨나는 속도.")]
         [Min(0f)] [SerializeField] private float _knockbackSpeed = 5f;
 
@@ -36,6 +39,9 @@ namespace OverCleaning.InGame
 
         /// <summary>서버가 정한다. 이 시각(서버 시간)까지 기절이다.</summary>
         private readonly NetworkVariable<double> _stunnedUntil = new NetworkVariable<double>();
+
+        /// <summary>서버가 정한다. 이 시각(서버 시간)까지 혼란이다. 키를 섞는 건 주인 기기의 일이고, 이 값은 별 표시에만 쓴다.</summary>
+        private readonly NetworkVariable<double> _confusedUntil = new NetworkVariable<double>();
 
         private PlayerMovement _playerMovement;
         private PlayerInteractor _interactor;
@@ -146,6 +152,9 @@ namespace OverCleaning.InGame
                 return;
 
             _stunnedUntil.Value = NetworkManager.ServerTime.Time + _stunDuration;
+            // 대기방에서는 키가 섞이지 않으므로(KeyShuffleController) 혼란 표시도 하지 않는다.
+            if (gameObject.scene.name != GameSession.RoomSceneName)
+                _confusedUntil.Value = NetworkManager.ServerTime.Time + _confusionDuration;
 
             // 전적에 더한다. 전적은 한 판 동안만 세므로 판이 없는 대기방에서는 세지 않는다.
             PlayerScore score = GetComponent<PlayerScore>();
@@ -179,9 +188,9 @@ namespace OverCleaning.InGame
             // 걷기를 막으면 걷던 속도가 멈추므로, 막은 뒤에 튕겨낸다.
             UpdateMovementFrozen();
 
-            // 부딪쳐 정신이 없어 한동안 이동 키가 뒤섞인다.
+            // 부딪쳐 정신이 없어 한동안 이동 키가 뒤섞인다(혼란).
             if (_keyShuffle != null)
-                _keyShuffle.ShuffleTemporarily();
+                _keyShuffle.ShuffleFor(_confusionDuration);
 
             direction.y = 0f;
             if (direction.sqrMagnitude > 0.000001f)
@@ -202,7 +211,8 @@ namespace OverCleaning.InGame
 
         private void OnGUI()
         {
-            if (!IsStunned)
+            bool isConfused = IsSpawned && NetworkManager.ServerTime.Time < _confusedUntil.Value;
+            if (!IsStunned && !isConfused)
                 return;
             if (_statusCamera == null)
                 _statusCamera = Camera.main;
