@@ -191,13 +191,6 @@ namespace OverCleaning.InGame
                 _trashCan.CanReceiveDust(HandPosition, HolderBody);
         }
 
-        /// <summary>하이라이트가 노즐 PropertyBlock을 덮거나 지우므로, 노즐 상태색을 이어서 다시 칠한다.</summary>
-        public override void SetHighlighted(bool highlighted)
-        {
-            base.SetHighlighted(highlighted);
-            UpdateNozzleColor();
-        }
-
         /// <summary>쓰레기통 옆에서 꾹 누르면 먼지통을 비운다.</summary>
         public override bool CanHoldUse => CanEmptyDustBin();
 

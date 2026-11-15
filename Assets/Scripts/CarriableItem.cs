@@ -174,7 +174,7 @@ namespace OverCleaning.InGame
             _highlighter = new BodyHighlighter(this);
         }
 
-        /// <summary>내 상호작용 대상으로 잡히면 몸통이 밝아진다. 보는 사람 기기만의 연출이다.</summary>
+        /// <summary>내 상호작용 대상으로 잡히면 테두리가 켜진다. 보는 사람 기기만의 연출이다.</summary>
         public virtual void SetHighlighted(bool highlighted)
         {
             _highlighter?.SetHighlighted(highlighted);
