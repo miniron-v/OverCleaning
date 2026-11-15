@@ -155,7 +155,9 @@ namespace OverCleaning.InGame
         }
 
         /// <summary>
-        /// 들기 키의 눌림을 지금 쓰는 액션 맵에서 읽는다. 셔플로 자리가 바뀌어도 그대로 따라간다.
+        /// 들기 키의 눌림을 지금 쓰는 액션 맵에서 읽는다.
+        /// 액션의 눌림 대신 그 키 자체를 본다. 키 셔플이 맵을 껐다 켜면 액션은 눌림을 잊어서,
+        /// 꾹 누르던 중에 뗀 것으로 보고 빗자루질을 멈추거나 들던 물건을 놓친다.
         /// </summary>
         private bool IsInteractPressed()
         {
@@ -163,7 +165,14 @@ namespace OverCleaning.InGame
             if (map == null)
                 return false;
             InputAction action = map.FindAction(InteractActionName);
-            return action != null && action.IsPressed();
+            if (action == null)
+                return false;
+            foreach (InputControl control in action.controls)
+            {
+                if (control.IsPressed())
+                    return true;
+            }
+            return false;
         }
 
         private void OnGUI()
