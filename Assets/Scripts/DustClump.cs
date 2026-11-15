@@ -1,4 +1,5 @@
 using Unity.Netcode;
+using Unity.Netcode.Components;
 using UnityEngine;
 
 namespace OverCleaning.InGame
@@ -330,13 +331,19 @@ namespace OverCleaning.InGame
         /// <summary>
         /// 서버에서만 부른다. 빈 뭉치를 새로 쓸 자리에 깐다. 한 번 깔린 뭉치는
         /// 움직이지 않는다 — 들어서 옮기는 것만 된다.
+        /// 자리 이동은 순간이동으로 알린다. 그냥 옮기면 NetworkTransform이 보간해,
+        /// 보이지 않던 빈 뭉치가 지난 자리에서 날아오는 것처럼 보인다.
         /// </summary>
         internal void ServerPlaceAt(Vector3 position)
         {
             if (!IsServer || IsHeld)
                 return;
+
             position.y = transform.position.y;
-            transform.position = position;
+            if (TryGetComponent(out NetworkTransform networkTransform) && networkTransform.enabled)
+                networkTransform.Teleport(position, transform.rotation, transform.localScale);
+            else
+                transform.position = position;
             Physics.SyncTransforms();
         }
 
