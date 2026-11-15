@@ -161,7 +161,6 @@ MonoBehaviour:
   - MoveDown
   - MoveLeft
   - MoveRight
-  - Interact
   _forbiddenGroups:
   - ActionNames:
     - MoveUp
