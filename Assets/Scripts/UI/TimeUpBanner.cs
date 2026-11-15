@@ -6,7 +6,7 @@ namespace OverCleaning.InGame
 {
     /// <summary>
     /// 시간이 다했을 때 화면 가운데에 '도착!'을 내려찍는다. 화면이 어두워지고 띠가 펼쳐진 뒤
-    /// 글자가 크게 내려와 박히며 화면이 흔들린다. 게임이 멈춘 뒤라 실제 시간으로 움직인다.
+    /// 글자가 크게 내려와 박히며 화면이 흔들린다. 실제 시간으로 움직인다.
     /// 그림은 프리팹에서, 타이밍은 아래 값과 곡선으로 고친다.
     /// </summary>
     public sealed class TimeUpBanner : MonoBehaviour

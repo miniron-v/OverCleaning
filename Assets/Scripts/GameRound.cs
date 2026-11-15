@@ -1,12 +1,13 @@
 using Unity.Netcode;
 using UnityEngine;
+using UnityEngine.InputSystem;
 using OverCleaning.Network;
 
 namespace OverCleaning.InGame
 {
     /// <summary>
     /// 한 판의 흐름을 맡는다. 엄마가 돌아오기 전(제한시간 안)에 다 치우면 성공,
-    /// 시간이 다하면 게임을 멈추고 '도착!'를 띄운 뒤 실패로 결과를 보여 준다.
+    /// 시간이 다하면 입력을 막고 '도착!'를 띄운 뒤 실패로 결과를 보여 준다.
     ///
     /// 판정은 서버가 한다. 남은 시간은 서버 시간 기준이라 모두 같은 숫자를 보고,
     /// 남은 먼지는 각 기기의 DustField가 이미 같게 맞춰져 있어 그대로 보여 주면 된다.
@@ -57,7 +58,7 @@ namespace OverCleaning.InGame
         /// <summary>서버에서만 쓴다. 결과 화면을 닫고 대기방으로 돌아갈 시각.</summary>
         private double _returnTime;
 
-        /// <summary>이 기기에서 시간이 다한 것을 본 실제 시각. 게임이 멈춰도 흐른다.</summary>
+        /// <summary>이 기기에서 시간이 다한 것을 본 시각.</summary>
         private float _timeUpStartTime;
 
         private RoundState State => (RoundState)_state.Value;
@@ -73,8 +74,7 @@ namespace OverCleaning.InGame
                 _endTime.Value = NetworkManager.ServerTime.Time + _countdownDuration;
 
             _state.OnValueChanged += OnStateChanged;
-            if (State == RoundState.Failed)
-                OnStateChanged(0, _state.Value);
+            OnStateChanged(0, _state.Value);
         }
 
         public override void OnNetworkDespawn()
@@ -82,21 +82,40 @@ namespace OverCleaning.InGame
             if (_current == this)
                 _current = null;
             _state.OnValueChanged -= OnStateChanged;
-            // 멈춘 채로 대기방에 가지 않도록 되돌린다.
-            Time.timeScale = 1f;
         }
 
         /// <summary>
-        /// 시간이 다하면 모든 기기가 각자 게임을 멈춘다. 네트워크 시간은 실제 시간으로 흐르므로
-        /// 결과 화면과 대기방 복귀는 그대로 진행된다.
+        /// 판이 끝나면 모든 기기가 각자 자기 입력을 막는다. 시간이 다했으면 '도착!'도 띄운다.
+        /// 플레이어는 씬마다 새로 스폰되므로 대기방에서 다시 풀 필요가 없다.
         /// </summary>
         private void OnStateChanged(int previous, int current)
         {
-            if ((RoundState)current != RoundState.Failed)
+            RoundState state = (RoundState)current;
+            if (state != RoundState.Cleared && state != RoundState.Failed)
+                return;
+            BlockLocalInput();
+            if (state != RoundState.Failed)
                 return;
             _timeUpStartTime = Time.unscaledTime;
-            Time.timeScale = 0f;
             _timeUpBanner.Play();
+        }
+
+        /// <summary>
+        /// 이동, 상호작용 등 모든 입력을 끄고 눌려 있던 상태를 지운다. 입력을 끄면 떼는 콜백이
+        /// 오지 않아 계속 미끄러지므로 이동을 비우고, 누르던 중의 들기 키가 뗀 것으로 읽혀
+        /// 내려놓지 않도록 ItemCarrier도 끈다(꺼질 때 하던 꾹 누르기를 멈춘다).
+        /// </summary>
+        private void BlockLocalInput()
+        {
+            NetworkObject player = NetworkManager.LocalClient?.PlayerObject;
+            if (player == null)
+                return;
+            if (player.TryGetComponent(out PlayerInput playerInput))
+                playerInput.DeactivateInput();
+            if (player.TryGetComponent(out PlayerMovement movement))
+                movement.ResetInputState();
+            if (player.TryGetComponent(out ItemCarrier carrier))
+                carrier.enabled = false;
         }
 
         private void Update()
