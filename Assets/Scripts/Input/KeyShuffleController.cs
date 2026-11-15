@@ -5,7 +5,7 @@ using UnityEngine.InputSystem;
 namespace OverCleaning.Input
 {
     /// <summary>
-    /// 스테이지 시작 시 이동/상호작용 키를 랜덤 셔플하고, 필요 시 기본 배치로 복원한다.
+    /// 스테이지 시작 시 이동 키를 랜덤 셔플하고, 필요 시 기본 배치로 복원한다.
     /// 실제 셔플 계산과 바인딩 적용은 KeyShuffle이 맡고, 이 컴포넌트는 Unity 관련만 담당한다:
     /// 인스펙터 설정 읽기, 액션 조회, 셔플 트리거.
     ///
@@ -16,13 +16,13 @@ namespace OverCleaning.Input
     public sealed class KeyShuffleController : MonoBehaviour
     {
         /// <summary>
-        /// 금지 규칙 한 묶음. 여기 적힌 액션들이 '모두' 기본과 같은 배정은 버려진다.
-        /// 묶음 중 일부만 제자리인 것은 허용된다. Unity가 중첩 배열을 직렬화하지 못해 클래스로 감싼다.
+        /// 금지 규칙 한 묶음. 여기 적힌 액션들이 기본 자리들을 그대로 차지하는 배정은
+        /// 서로 맞바꾼 경우까지 버려진다. Unity가 중첩 배열을 직렬화하지 못해 클래스로 감싼다.
         /// </summary>
         [Serializable]
         private sealed class ForbiddenGroup
         {
-            [Tooltip("이 액션들이 전부 기본 값과 같으면 그 배정을 버린다. 개수 제한은 없다.")]
+            [Tooltip("이 액션들이 기본 키 묶음을 그대로 쓰면(순서가 바뀌어도) 그 배정을 버린다. 개수 제한은 없다.")]
             public string[] ActionNames;
         }
 
@@ -35,12 +35,12 @@ namespace OverCleaning.Input
         [Tooltip("자리(물리 키)를 정의하는 자리 카탈로그 맵의 이름. 이 맵은 실행 중 활성화되지 않는다.")]
         [SerializeField] private string _slotMapName = "KeySlots";
 
-        [Tooltip("셔플 대상 액션 이름. 이 맵의 다른 액션(예: Pause)은 셔플되지 않는다. " +
+        [Tooltip("셔플 대상 액션 이름. 이 맵의 다른 액션(예: Interact)은 기본 키에 고정된다. " +
                  "각 액션의 기본 자리는 바인딩을 자리 카탈로그와 대조해 자동으로 찾으므로 나열 순서는 무관하다.")]
         [SerializeField]
         private string[] _actionNames =
         {
-            "MoveUp", "MoveDown", "MoveLeft", "MoveRight", "Interact",
+            "MoveUp", "MoveDown", "MoveLeft", "MoveRight",
         };
 
         [Tooltip("기본 배치가 그대로 남는 것을 막는 규칙. " +

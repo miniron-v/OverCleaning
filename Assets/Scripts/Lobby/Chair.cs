@@ -42,6 +42,9 @@ namespace OverCleaning.Lobby
             ApplySeating();
         }
 
+        /// <summary>늦게 들어오면 앉은 사람이 의자보다 늦게 스폰될 수 있어, 다 받은 뒤 다시 앉힌다.</summary>
+        protected override void OnNetworkSessionSynchronized() => ApplySeating();
+
         public override void OnNetworkDespawn()
         {
             _occupant.OnValueChanged -= OnOccupantChanged;
@@ -75,9 +78,21 @@ namespace OverCleaning.Lobby
                 SetSeated(_seatedPlayer, false);
             _seatedPlayer = _occupant.Value == NoOccupant
                 ? null
-                : NetworkManager.SpawnManager.GetPlayerNetworkObject(_occupant.Value);
+                : FindPlayer(_occupant.Value);
             if (_seatedPlayer != null)
                 SetSeated(_seatedPlayer, true);
+        }
+
+        /// <summary>GetPlayerNetworkObject는 클라이언트에서 남의 플레이어를 찾지 못해 스폰 목록에서 직접 찾는다.</summary>
+        private NetworkObject FindPlayer(ulong clientId)
+        {
+            foreach (NetworkObject spawned in NetworkManager.SpawnManager.SpawnedObjectsList)
+            {
+                if (spawned.IsPlayerObject && spawned.OwnerClientId == clientId)
+                    return spawned;
+            }
+
+            return null;
         }
 
         /// <summary>몸은 자기 것만 직접 움직이므로 조작과 위치는 자기 캐릭터만 바꾼다.</summary>

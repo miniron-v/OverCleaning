@@ -1,11 +1,13 @@
 using Unity.Netcode;
 using UnityEngine;
+using UnityEngine.InputSystem;
 using OverCleaning.Network;
 
 namespace OverCleaning.InGame
 {
     /// <summary>
-    /// 한 판의 흐름을 맡는다. 제한시간 안에 먼지를 다 치우면 성공, 시간이 다하면 실패다.
+    /// 한 판의 흐름을 맡는다. 엄마가 돌아오기 전(제한시간 안)에 다 치우면 성공,
+    /// 시간이 다하면 입력을 막고 '도착!'를 띄운 뒤 실패로 결과를 보여 준다.
     ///
     /// 판정은 서버가 한다. 남은 시간은 서버 시간 기준이라 모두 같은 숫자를 보고,
     /// 남은 먼지는 각 기기의 DustField가 이미 같게 맞춰져 있어 그대로 보여 주면 된다.
@@ -29,12 +31,16 @@ namespace OverCleaning.InGame
         [SerializeField] private Texture2D[] _countdownImages = new Texture2D[0];
         [Tooltip("확인을 누르지 않아도 대기방으로 돌아가는 시간(초). 자리 비운 사람을 위한 보조다.")]
         [Min(1f)] [SerializeField] private float _resultDuration = 20f;
+        [Tooltip("시간이 다했을 때 결과 대신 '도착!'만 보여 주는 시간(초).")]
+        [Min(0f)] [SerializeField] private float _timeUpDuration = 2.5f;
         [SerializeField] private DustField _dustField;
         [Tooltip("얼룩이 있는 스테이지만 지정한다. 비우면 먼지만으로 판정한다.")]
         [SerializeField] private GrimeField _grimeField;
         [Tooltip("빗자루로 모은 먼지 뭉치들. 지정하면 쓰레기통에 쏟아야 끝난 것으로 친다.")]
         [SerializeField] private DustClump[] _dustClumps = new DustClump[0];
         [SerializeField] private GameScreen _gameScreen;
+        [SerializeField] private RoundTimerBar _timerBar;
+        [SerializeField] private TimeUpBanner _timeUpBanner;
 
         /// <summary>서버가 정한다. 판이 끝나는 서버 시각.</summary>
         private readonly NetworkVariable<double> _endTime = new NetworkVariable<double>();
@@ -52,6 +58,9 @@ namespace OverCleaning.InGame
         /// <summary>서버에서만 쓴다. 결과 화면을 닫고 대기방으로 돌아갈 시각.</summary>
         private double _returnTime;
 
+        /// <summary>이 기기에서 시간이 다한 것을 본 시각.</summary>
+        private float _timeUpStartTime;
+
         private RoundState State => (RoundState)_state.Value;
 
         private double RemainingSeconds =>
@@ -63,17 +72,59 @@ namespace OverCleaning.InGame
             // 처음에는 카운트다운이 끝나는 시각을 담는다. 플레이로 넘어갈 때 제한시간으로 바뀐다.
             if (IsServer)
                 _endTime.Value = NetworkManager.ServerTime.Time + _countdownDuration;
+
+            _state.OnValueChanged += OnStateChanged;
+            OnStateChanged(0, _state.Value);
         }
 
         public override void OnNetworkDespawn()
         {
             if (_current == this)
                 _current = null;
+            _state.OnValueChanged -= OnStateChanged;
+        }
+
+        /// <summary>
+        /// 판이 끝나면 모든 기기가 각자 자기 입력을 막는다. 시간이 다했으면 '도착!'도 띄운다.
+        /// 플레이어는 씬마다 새로 스폰되므로 대기방에서 다시 풀 필요가 없다.
+        /// </summary>
+        private void OnStateChanged(int previous, int current)
+        {
+            RoundState state = (RoundState)current;
+            if (state != RoundState.Cleared && state != RoundState.Failed)
+                return;
+            BlockLocalInput();
+            if (state != RoundState.Failed)
+                return;
+            _timeUpStartTime = Time.unscaledTime;
+            _timeUpBanner.Play();
+        }
+
+        /// <summary>
+        /// 이동, 상호작용 등 모든 입력을 끄고 눌려 있던 상태를 지운다. 입력을 끄면 떼는 콜백이
+        /// 오지 않아 계속 미끄러지므로 이동을 비우고, 누르던 중의 들기 키가 뗀 것으로 읽혀
+        /// 내려놓지 않도록 ItemCarrier도 끈다(꺼질 때 하던 꾹 누르기를 멈춘다).
+        /// </summary>
+        private void BlockLocalInput()
+        {
+            NetworkObject player = NetworkManager.LocalClient?.PlayerObject;
+            if (player == null)
+                return;
+            if (player.TryGetComponent(out PlayerInput playerInput))
+                playerInput.DeactivateInput();
+            if (player.TryGetComponent(out PlayerMovement movement))
+                movement.ResetInputState();
+            if (player.TryGetComponent(out ItemCarrier carrier))
+                carrier.enabled = false;
         }
 
         private void Update()
         {
-            if (!IsSpawned || !IsServer)
+            if (!IsSpawned)
+                return;
+
+            UpdateHud();
+            if (!IsServer)
                 return;
 
             if (State == RoundState.Countdown)
@@ -141,7 +192,9 @@ namespace OverCleaning.InGame
         private void FinishRound(RoundState result)
         {
             _state.Value = (int)result;
-            _returnTime = NetworkManager.ServerTime.Time + _resultDuration;
+            // '도착!'를 보여 주는 동안은 결과를 보는 시간에서 빼지 않는다.
+            double timeUp = result == RoundState.Failed ? _timeUpDuration : 0.0;
+            _returnTime = NetworkManager.ServerTime.Time + timeUp + _resultDuration;
         }
 
         /// <summary>누가 눌렀든 확인 한 번이면 전원이 돌아간다. 판정은 서버가 한다.</summary>
@@ -159,10 +212,24 @@ namespace OverCleaning.InGame
 
             if (State == RoundState.Countdown)
                 DrawCountdown();
-            else if (State == RoundState.Playing)
-                DrawPlayingDashboard();
-            else
+            else if (State != RoundState.Playing && !IsShowingTimeUp)
                 DrawResultDashboard();
+        }
+
+        /// <summary>시간이 다한 뒤 결과 대신 '도착!'을 보여 주는 동안 참이다.</summary>
+        private bool IsShowingTimeUp =>
+            State == RoundState.Failed && Time.unscaledTime - _timeUpStartTime < _timeUpDuration;
+
+        /// <summary>플레이 중에는 남은 시간 막대를, '도착!'이 끝나면 결과만 보이게 한다.</summary>
+        private void UpdateHud()
+        {
+            if (State == RoundState.Playing)
+                _timerBar.Show(RemainingSeconds, _roundDuration, RemainingTargetsSummary);
+            else
+                _timerBar.Hide();
+
+            if (State == RoundState.Failed && !IsShowingTimeUp)
+                _timeUpBanner.Hide();
         }
 
         /// <summary>
@@ -189,19 +256,20 @@ namespace OverCleaning.InGame
                 image, ScaleMode.ScaleToFit, true);
         }
 
-        private void DrawPlayingDashboard()
+        /// <summary>시간 막대 아래에 적을 남은 청소 대상들.</summary>
+        private string RemainingTargetsSummary
         {
-            double remaining = RemainingSeconds;
-            int minutes = (int)remaining / 60;
-            int seconds = (int)remaining % 60;
-            string summary = $"남은 시간 {minutes}:{seconds:00}";
-            if (_dustField != null)
-                summary += $"   |   먼지 {_dustField.RemainingDustCount}";
-            if (_grimeField != null)
-                summary += $"   |   얼룩 {_grimeField.RemainingCount}";
-            if (RemainingClumpDust > 0)
-                summary += $"   |   뭉친 먼지 {RemainingClumpDust}";
-            GUI.Box(new Rect((Screen.width - 360f) * 0.5f, 12f, 360f, 34f), summary);
+            get
+            {
+                var parts = new System.Collections.Generic.List<string>();
+                if (_dustField != null)
+                    parts.Add($"먼지 {_dustField.RemainingDustCount}");
+                if (_grimeField != null)
+                    parts.Add($"얼룩 {_grimeField.RemainingCount}");
+                if (RemainingClumpDust > 0)
+                    parts.Add($"뭉친 먼지 {RemainingClumpDust}");
+                return string.Join("   |   ", parts);
+            }
         }
 
         private void DrawResultDashboard()

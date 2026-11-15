@@ -29,7 +29,8 @@ namespace OverCleaning.Input
         /// <param name="slotCount">전체 자리 수. 액션 수보다 크면 그만큼 빈 자리가 생긴다.</param>
         /// <param name="defaultAssignment">기본 배치. 길이가 곧 배정할 액션 수.</param>
         /// <param name="forbiddenGroups">
-        /// 금지 규칙. 한 묶음의 액션이 '모두' 기본 자리에 남는 배정은 버린다.
+        /// 금지 규칙. 한 묶음의 액션들이 묶음의 기본 자리들을 그대로 차지하는 배정은
+        /// 순서가 바뀌었더라도 버린다.
         /// 값은 액션 인덱스이며, 호출자가 미리 가공한 정보. 묶음 크기에는 제한이 없다.
         /// </param>
         /// <returns>assignment[액션] = 자리 인덱스. 어떤 액션이 어떤 자리인가.</returns>
@@ -119,22 +120,37 @@ namespace OverCleaning.Input
             return assignment;
         }
 
-        /// <summary>금지 묶음 중 단 하나라도 '묶음 내 모든 액션이 기본 자리'이면 true.</summary>
+        /// <summary>
+        /// 금지 묶음 중 단 하나라도 '묶음이 기본 자리들을 그대로 차지'하면 true.
+        /// 묶음 안에서 서로 맞바꾼 것(왼=D, 오른=A)도 같은 키 묶음이므로 걸러낸다.
+        /// 배정은 서로 다른 자리이므로, 묶음의 모든 액션이 묶음의 기본 자리 중 하나에 있으면 자리 집합이 같다.
+        /// </summary>
         private static bool IsForbidden(int[] assignment, int[] defaultAssignment, int[][] forbiddenGroups)
         {
             foreach (int[] group in forbiddenGroups)
             {
-                bool allAtDefault = true;
+                bool allInDefaultSlots = true;
                 foreach (int action in group)
                 {
-                    if (assignment[action] != defaultAssignment[action])
+                    if (!IsDefaultSlotOf(group, defaultAssignment, assignment[action]))
                     {
-                        allAtDefault = false;
+                        allInDefaultSlots = false;
                         break;
                     }
                 }
 
-                if (allAtDefault)
+                if (allInDefaultSlots)
+                    return true;
+            }
+
+            return false;
+        }
+
+        private static bool IsDefaultSlotOf(int[] group, int[] defaultAssignment, int slot)
+        {
+            foreach (int action in group)
+            {
+                if (defaultAssignment[action] == slot)
                     return true;
             }
 
