@@ -14,9 +14,12 @@ namespace OverCleaning.InGame
     /// CarriableItem과 달리 주인이 없어서 부모도 소유권도 바꾸지 않는다.
     ///
     /// 혼자 잡은 동안은 제자리에 묶인다 — 소파는 꿈쩍도 않는데 사람만 돌아다니면
-    /// 잡은 게 무의미해진다. 다 같이 들면 풀려서 함께 걸으며 옮긴다. 제 캐릭터는
-    /// 제 기기가 움직이므로 묶는 것도 각자의 기기가 한다. 놓으면 바로 풀린다.
+    /// 잡은 게 무의미해진다. 다 같이 들면 느린 걸음으로 함께 옮기되, 각자 잡은
+    /// 자리에서 벗어나지 못한다 — 놓기 전에는 물건과 떨어질 수 없고, 사람들만
+    /// 앞서가며 물건이 공중에 떠서 따라오는 모습이 나오지 않는다.
+    /// 제 캐릭터는 제 기기가 움직이므로 묶고 붙드는 것도 각자의 기기가 한다.
     /// </summary>
+    [DefaultExecutionOrder(100)] // PlayerMovement가 속도를 정한 뒤에 붙드는 보정을 한다.
     public sealed class CoopCarriable : NetworkBehaviour, IInteractable, IHighlightable
     {
         [Tooltip("함께 들어야 하는 인원.")]
@@ -33,6 +36,8 @@ namespace OverCleaning.InGame
         [Min(0f)] [SerializeField] private float _partialTiltAngle = 7f;
         [Tooltip("다 같이 들고 옮기는 동안의 이동 속도 배율. 물건이 따라올 수 있는 만큼만 걷게 한다.")]
         [Range(0.1f, 1f)] [SerializeField] private float _carrySpeedMultiplier = 0.55f;
+        [Tooltip("든 동안 잡은 자리에서 벗어날 수 있는 거리. 작을수록 딱 붙는다.")]
+        [Min(0.05f)] [SerializeField] private float _tetherRadius = 0.4f;
 
         /// <summary>잡고 있는 사람들. 서버가 넣고 빼며 모두에게 내려간다.</summary>
         private readonly NetworkList<ulong> _lifterClientIds = new NetworkList<ulong>();
@@ -55,6 +60,10 @@ namespace OverCleaning.InGame
 
         /// <summary>이 기기에서만 쓴다. 내 캐릭터에 잡기 효과(묶임·감속·바라보기)를 걸었는지.</summary>
         private bool _localLifting;
+
+        /// <summary>이 기기에서만 쓴다. 든 동안 붙들려 있는지와, 물건 기준 잡은 자리.</summary>
+        private bool _localTethered;
+        private Vector3 _localGrabOffset;
 
         public bool IsFullyLifted => IsSpawned && _lifterClientIds.Count >= _requiredLifters;
 
@@ -298,11 +307,56 @@ namespace OverCleaning.InGame
             movement.CoopSpeedMultiplier = lifting && IsFullyLifted ? _carrySpeedMultiplier : 1f;
             if (body.TryGetComponent(out PlayerModelFacing facing))
                 facing.LookAtTarget = lifting ? transform : null;
+
+            UpdateTether(body, lifting && IsFullyLifted);
+        }
+
+        /// <summary>
+        /// 든 동안 내 캐릭터를 잡은 자리에 붙들어 둔다. 잡은 자리는 물건 기준이라
+        /// 물건이 돌면 함께 돈다. 여유 반경을 벗어나면 바깥으로 나가는 속도만 지우고
+        /// 자리로 되돌리므로, 줄을 따라 도는 움직임(회전 운반)은 그대로 된다.
+        /// 물건이 가운데를 따라오면 자리도 함께 나아가 운반은 평소처럼 된다.
+        /// </summary>
+        private void UpdateTether(Rigidbody body, bool shouldTether)
+        {
+            if (shouldTether != _localTethered)
+            {
+                _localTethered = shouldTether;
+                if (shouldTether)
+                {
+                    // 다 들린 순간의 자리를 물건 기준으로 기억한다.
+                    _localGrabOffset = Quaternion.Inverse(transform.rotation) *
+                        (body.position - transform.position);
+                    _localGrabOffset.y = 0f;
+                }
+            }
+
+            if (!_localTethered)
+                return;
+
+            Vector3 anchor = transform.position + transform.rotation * _localGrabOffset;
+            Vector3 offset = body.position - anchor;
+            offset.y = 0f;
+            float distance = offset.magnitude;
+            if (distance <= _tetherRadius)
+                return;
+
+            // 줄에 걸렸다. 바깥으로 나가는 속도 성분만 지워 옆걸음과 회전은 그대로 둔다.
+            Vector3 outward = offset / distance;
+            Vector3 velocity = body.linearVelocity;
+            float outwardSpeed = velocity.x * outward.x + velocity.z * outward.z;
+            if (outwardSpeed > 0f)
+                body.linearVelocity = velocity - outward * outwardSpeed;
+
+            Vector3 corrected = anchor + outward * _tetherRadius;
+            corrected.y = body.position.y;
+            body.position = corrected;
         }
 
         public override void OnNetworkDespawn()
         {
             // 판이 끝나며 사라져도 효과가 걸린 채 남지 않게 풀어 둔다.
+            _localTethered = false;
             if (!_localLifting)
                 return;
             _localLifting = false;
