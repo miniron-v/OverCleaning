@@ -389,7 +389,7 @@ namespace OverCleaning.EditorTools
                 var stain = new GameObject($"Floor Stain {index + 1}");
                 stain.transform.SetParent(parent.transform);
                 stain.transform.position = new Vector3(
-                    center.x + offsets[index].x, floorTop + 0.03f, center.z + offsets[index].y);
+                    center.x + offsets[index].x, floorTop + 0.012f, center.z + offsets[index].y);
                 stain.transform.rotation = Quaternion.Euler(90f, index * 70f, 0f);
                 CreateStainQuad(stain.transform, Vector3.zero, 0.7f, GrimeKind.Floor, stainMaterial, spots);
             }

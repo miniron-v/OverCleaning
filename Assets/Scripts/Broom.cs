@@ -259,10 +259,17 @@ namespace OverCleaning.InGame
             }
 
             string hint = !hasSpace ? "뭉치가 모두 가득! 들어서 쓰레기통에 버리세요" :
-                _isSweeping ? "쓸어 모으는 중... (이동 불가, 방향 키로 돌리기)" :
-                HasDustInRange ? "들기 키 꾹: 제자리에서 쓸어 모으기 / 짧게: 내려놓기" :
-                "먼지 근처에서 꾹 누르면 뭉친 먼지로 쓸어 모읍니다 (짧게: 내려놓기)";
-            GUI.Box(new Rect(16f, 16f, 360f, 48f), $"뭉친 먼지 {gathered}\n{hint}");
+                _isSweeping ? "쓸어 모으는 중 · 이동 불가, 방향 키로 돌리기" :
+                HasDustInRange ? "꾹: 제자리에서 쓸어 모으기 · 짧게: 내려놓기" :
+                "먼지 근처에서 꾹 누르면 뭉치로 모읍니다 · 짧게: 내려놓기";
+
+            var panel = new Rect(16f, 118f, 320f, 72f);
+            HudStyle.Panel(panel);
+            GUI.Label(new Rect(32f, 130f, 288f, 20f),
+                $"빗자루  <color=#FFFFFFD9><size=12>뭉친 먼지 {gathered}</size></color>",
+                HudStyle.TitleStyle);
+            GUI.Label(new Rect(32f, 156f, 288f, 16f), hint,
+                hasSpace ? HudStyle.HintStyle : HudStyle.BodyStyle);
         }
 
         /// <summary>
@@ -281,7 +288,7 @@ namespace OverCleaning.InGame
                 HolderBody.position + Vector3.up * 2.3f);
             if (screenPosition.z <= 0f)
                 return;
-            GUI.Box(new Rect(screenPosition.x - 70f, Screen.height - screenPosition.y - 24f, 140f, 24f),
+            HudStyle.Pill(new Rect(screenPosition.x - 70f, Screen.height - screenPosition.y - 26f, 140f, 30f),
                 "빗자루질 중...");
         }
 

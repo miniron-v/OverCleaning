@@ -48,6 +48,8 @@ namespace OverCleaning.InGame
         [Tooltip("가장자리 물듦의 진하기. 30초 / 0초.")]
         [SerializeField] private float _vignetteStart = 0.25f;
         [SerializeField] private float _vignetteEnd = 0.65f;
+        [Tooltip("수면 부족 컨셉: 평소에도 깔려 있는 검은 가장자리 물듦.")]
+        [SerializeField] private Color _sleepyVignetteColor = new Color(0f, 0f, 0f, 0.85f);
 
         [Header("급박 알림")]
         [SerializeField] private float _noticeDuration = 2.4f;
@@ -119,13 +121,17 @@ namespace OverCleaning.InGame
             _timeText.color = urgent ? Color.Lerp(Color.white, _urgentTextColor, punch) : Color.white;
             _detailsText.text = details;
 
-            _vignette.enabled = urgent;
+            // 수면 부족 컨셉: 평소에도 검은 비네트가 깔려 있고,
+            // 급박해지면(30초) 거기서부터 점점 붉게 물들어 간다.
+            _vignette.enabled = true;
+            Color vignetteTint = _sleepyVignetteColor;
             if (urgent)
             {
-                Color tint = _urgentColor;
-                tint.a = Mathf.Lerp(_vignetteStart, _vignetteEnd, urgency) * (0.35f + 0.65f * punch);
-                _vignette.color = tint;
+                Color urgentTint = _urgentColor;
+                urgentTint.a = Mathf.Lerp(_vignetteStart, _vignetteEnd, urgency) * (0.35f + 0.65f * punch);
+                vignetteTint = Color.Lerp(_sleepyVignetteColor, urgentTint, Mathf.Clamp01(urgency + 0.15f));
             }
+            _vignette.color = vignetteTint;
 
             UpdateUrgentNotice(urgent ? now - _urgentStartTime : -1f);
         }

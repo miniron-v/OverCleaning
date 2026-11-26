@@ -175,14 +175,24 @@ namespace OverCleaning.InGame
             // 비우는 중 표시는 서버가 내려주는 값이라 모두가 같은 것을 본다.
             // 머리 위 진행 막대는 Vacuum이 모든 기기에서 그린다.
             string status = vacuum.IsEmptying ? "먼지통 비우는 중" :
-                vacuum.IsFull ? "먼지통 가득 참 — 비워주세요" :
+                vacuum.IsFull ? "가득 참 — 비워주세요" :
                 vacuum.IsRunning ? "청소 중" : "작동 정지";
-            string hint = vacuum.StoredDustCount == 0 ? "먼지통이 비어 있습니다 (짧게 눌러 내려놓기)" :
-                vacuum.CanEmptyDustBin() ? "들기 키 꾹: 먼지통 비우기 / 짧게: 내려놓기" :
+            string hint = vacuum.StoredDustCount == 0 ? "먼지통이 비어 있습니다 · 짧게 눌러 내려놓기" :
+                vacuum.CanEmptyDustBin() ? "꾹: 먼지통 비우기 · 짧게: 내려놓기" :
                 "먼지를 버리려면 쓰레기통 가까이 가세요";
-            GUI.Box(new Rect(16f, 16f, 360f, 72f),
+
+            var panel = new Rect(16f, 118f, 320f, 96f);
+            HudStyle.Panel(panel);
+            GUI.Label(new Rect(32f, 130f, 288f, 20f),
+                $"청소기  <color=#FFFFFFD9><size=12>{status}</size></color>", HudStyle.TitleStyle);
+            HudStyle.Bar(new Rect(32f, 154f, 288f, 10f),
+                (float)vacuum.StoredDustCount / vacuum.DustCapacity,
+                vacuum.IsFull ? HudStyle.Bad : HudStyle.Accent);
+            GUI.Label(new Rect(32f, 168f, 288f, 18f),
                 $"먼지통 {vacuum.StoredDustCount}/{vacuum.DustCapacity}" +
-                $" (흡입 중: {vacuum.ReservedDustCount})\n{status}\n{hint}");
+                (vacuum.ReservedDustCount > 0 ? $"  ·  흡입 중 {vacuum.ReservedDustCount}" : string.Empty),
+                HudStyle.BodyStyle);
+            GUI.Label(new Rect(32f, 186f, 288f, 16f), hint, HudStyle.HintStyle);
         }
     }
 }

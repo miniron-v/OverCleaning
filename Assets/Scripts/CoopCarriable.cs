@@ -38,7 +38,9 @@ namespace OverCleaning.InGame
         [Tooltip("다 같이 들고 옮기는 동안의 이동 속도 배율. 물건이 따라올 수 있는 만큼만 걷게 한다.")]
         [Range(0.1f, 1f)] [SerializeField] private float _carrySpeedMultiplier = 0.55f;
         [Tooltip("든 동안 잡은 자리에서 벗어날 수 있는 거리. 작을수록 딱 붙는다.")]
-        [Min(0.05f)] [SerializeField] private float _tetherRadius = 0.4f;
+        [Min(0.05f)] [SerializeField] private float _tetherRadius = 0.8f;
+        [Tooltip("들려 가는 동안 막혀야 하는 벽과 장애물 레이어.")]
+        [SerializeField] private LayerMask _obstacleLayers = ~0;
 
         /// <summary>잡고 있는 사람들. 서버가 넣고 빼며 모두에게 내려간다.</summary>
         private readonly NetworkList<ulong> _lifterClientIds = new NetworkList<ulong>();
@@ -302,9 +304,52 @@ namespace OverCleaning.InGame
             Vector3 target = midpoint + _lifterAxisRotation * _carryLocalOffset;
             target.y = _restHeight + _liftHeight;
             float alpha = 1f - Mathf.Exp(-_followSharpness * Time.deltaTime);
-            transform.position = Vector3.Lerp(transform.position, target, alpha);
+            Vector3 desired = Vector3.Lerp(transform.position, target, alpha);
+            transform.position = ClampAgainstObstacles(transform.position, desired);
             transform.rotation = Quaternion.Slerp(
                 transform.rotation, _lifterAxisRotation * _carryLocalRotation, alpha);
+        }
+
+        private readonly RaycastHit[] _castBuffer = new RaycastHit[8];
+
+        /// <summary>
+        /// 가려는 자리까지 몸통으로 쓸어 보고, 벽에 걸리면 그 앞까지만 간다.
+        /// 든 사람들은 비켜 가도 물건이 벽을 지나치지 않는다. 잡은 사람과
+        /// 자기 자신은 장애물로 치지 않는다.
+        /// </summary>
+        private Vector3 ClampAgainstObstacles(Vector3 from, Vector3 to)
+        {
+            Vector3 displacement = to - from;
+            float distance = displacement.magnitude;
+            if (distance < 0.0001f)
+                return to;
+
+            Vector3 scale = transform.lossyScale;
+            Vector3 halfExtents = Vector3.Scale(_bodyCollider.size, scale) * 0.45f;
+            Vector3 center = from + transform.rotation *
+                Vector3.Scale(_bodyCollider.center, scale);
+            Vector3 direction = displacement / distance;
+            int count = Physics.BoxCastNonAlloc(center, halfExtents, direction, _castBuffer,
+                transform.rotation, distance, _obstacleLayers, QueryTriggerInteraction.Ignore);
+            float allowed = distance;
+            for (int index = 0; index < count; index++)
+            {
+                Collider hit = _castBuffer[index].collider;
+                if (hit == _bodyCollider || IsLifterCollider(hit))
+                    continue;
+                allowed = Mathf.Min(allowed, Mathf.Max(0f, _castBuffer[index].distance - 0.02f));
+            }
+
+            return from + direction * allowed;
+        }
+
+        private bool IsLifterCollider(Collider other)
+        {
+            Rigidbody body = other.attachedRigidbody;
+            if (body == null)
+                return false;
+            NetworkObject player = body.GetComponent<NetworkObject>();
+            return player != null && _lifterClientIds.Contains(player.OwnerClientId);
         }
 
         /// <summary>
@@ -353,7 +398,7 @@ namespace OverCleaning.InGame
                     Vector3 direction = away.sqrMagnitude > 0.0001f
                         ? away.normalized
                         : (body.position - transform.position).normalized;
-                    Vector3 anchorWorld = closest + direction * 0.35f;
+                    Vector3 anchorWorld = closest + direction * 0.5f;
                     _localGrabOffset = Quaternion.Inverse(transform.rotation) *
                         (anchorWorld - transform.position);
                     _localGrabOffset.y = 0f;
@@ -370,17 +415,17 @@ namespace OverCleaning.InGame
             if (distance <= _tetherRadius)
                 return;
 
-            // 줄에 걸렸다. 바깥으로 나가는 속도 성분만 지워 옆걸음과 회전은 그대로 둔다.
+            // 줄에 걸렸다. 위치를 직접 되돌리면 보간과 싸워 덜덜거리므로 속도로만 다룬다.
+            // 바깥으로 나가는 속도 성분을 지워 옆걸음과 회전은 그대로 두고,
+            // 넘친 만큼 자리로 끌어오는 스프링 속도를 더해 부드럽게 끌려온다.
             Vector3 outward = offset / distance;
             Vector3 velocity = body.linearVelocity;
             float outwardSpeed = velocity.x * outward.x + velocity.z * outward.z;
             if (outwardSpeed > 0f)
-                body.linearVelocity = velocity - outward * outwardSpeed;
-
-            // 멀리서 잡아 당겨 붙는 동안 순간이동하지 않도록 일정 속도로 끌려온다.
-            Vector3 corrected = anchor + outward * _tetherRadius;
-            corrected.y = body.position.y;
-            body.position = Vector3.MoveTowards(body.position, corrected, 8f * Time.fixedDeltaTime);
+                velocity -= outward * outwardSpeed;
+            float overshoot = distance - _tetherRadius;
+            velocity -= outward * Mathf.Min(overshoot * 7f, 4.5f);
+            body.linearVelocity = velocity;
         }
 
         public override void OnNetworkDespawn()
