@@ -418,15 +418,12 @@ namespace OverCleaning.InGame
             float progress = _emptyStartCount.Value > 0
                 ? 1f - (float)_storedDust.Value / _emptyStartCount.Value
                 : 1f;
-            float left = screenPosition.x - 75f;
-            float top = Screen.height - screenPosition.y - 40f;
-            GUI.Box(new Rect(left, top, 150f, 40f), "먼지통 비우는 중...");
-            Color previousColor = GUI.color;
-            GUI.color = Color.gray;
-            GUI.DrawTexture(new Rect(left + 8f, top + 25f, 134f, 8f), Texture2D.whiteTexture);
-            GUI.color = Color.green;
-            GUI.DrawTexture(new Rect(left + 8f, top + 25f, 134f * progress, 8f), Texture2D.whiteTexture);
-            GUI.color = previousColor;
+            float left = screenPosition.x - 85f;
+            float top = Screen.height - screenPosition.y - 46f;
+            HudStyle.Panel(new Rect(left, top, 170f, 46f));
+            GUI.Label(new Rect(left + 14f, top + 8f, 142f, 16f), "먼지통 비우는 중...",
+                HudStyle.BodyStyle);
+            HudStyle.Bar(new Rect(left + 14f, top + 28f, 142f, 8f), progress, HudStyle.Good);
         }
 
         private void OnDrawGizmosSelected()

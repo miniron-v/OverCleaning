@@ -384,9 +384,16 @@ namespace OverCleaning.InGame
         {
             if (!IsHeldByLocalPlayer || StoredDustCount <= 0)
                 return;
-            string hint = CanHoldUse ? "들기 키 꾹: 쓰레기통에 쏟기 / 짧게: 내려놓기"
-                : "쓰레기통 가까이 가서 꾹 누르면 쏟습니다 (짧게: 내려놓기)";
-            GUI.Box(new Rect(16f, 16f, 360f, 48f), $"뭉친 먼지 {StoredDustCount}/{_capacity}\n{hint}");
+            string hint = CanHoldUse ? "꾹: 쓰레기통에 쏟기 · 짧게: 내려놓기"
+                : "쓰레기통 가까이 가서 꾹 누르면 쏟습니다 · 짧게: 내려놓기";
+
+            var panel = new Rect(16f, 16f, 320f, 88f);
+            HudStyle.Panel(panel);
+            GUI.Label(new Rect(32f, 28f, 288f, 20f), "뭉친 먼지", HudStyle.TitleStyle);
+            HudStyle.Bar(new Rect(32f, 52f, 288f, 10f),
+                (float)StoredDustCount / _capacity, HudStyle.Accent);
+            GUI.Label(new Rect(32f, 66f, 288f, 16f),
+                $"{StoredDustCount}/{_capacity}  ·  {hint}", HudStyle.HintStyle);
         }
     }
 }

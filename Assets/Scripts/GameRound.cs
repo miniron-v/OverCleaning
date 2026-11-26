@@ -278,33 +278,39 @@ namespace OverCleaning.InGame
             PlayerScore[] scores = FindObjectsByType<PlayerScore>(FindObjectsSortMode.None);
             System.Array.Sort(scores, (left, right) => left.OwnerClientId.CompareTo(right.OwnerClientId));
 
-            float height = 140f + scores.Length * 24f;
+            float height = 158f + scores.Length * 26f;
             float panelLeft = (Screen.width - width) * 0.5f;
             float panelTop = (Screen.height - height) * 0.5f;
-            GUI.Box(new Rect(panelLeft, panelTop, width, height), string.Empty);
+            HudStyle.Panel(new Rect(panelLeft, panelTop, width, height));
 
-            string title = State == RoundState.Cleared ? "청소 완료!" : "시간 초과 — 실패";
-            GUI.Label(new Rect(panelLeft, panelTop + 14f, width, 24f),
-                $"<size=18><b>{title}</b></size>",
-                new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, richText = true });
+            bool cleared = State == RoundState.Cleared;
+            string titleColor = cleared ? "7CE38B" : "FF6B5E";
+            string title = cleared ? "청소 완료!" : "엄마가 도착했다…";
+            GUI.Label(new Rect(panelLeft, panelTop + 16f, width, 28f),
+                $"<color=#{titleColor}>{title}</color>", HudStyle.TitleCenterStyle);
 
-            GUI.Label(new Rect(panelLeft + 24f, panelTop + 48f, width - 48f, 20f),
-                "<b>이름                 청소한 먼지        충돌</b>",
-                new GUIStyle(GUI.skin.label) { richText = true });
+            GUI.Label(new Rect(panelLeft + 28f, panelTop + 56f, width - 56f, 20f),
+                $"<color=#{HudStyle.AccentHex}><b>이름</b></color>",
+                HudStyle.BodyStyle);
+            GUI.Label(new Rect(panelLeft + 28f, panelTop + 56f, width - 56f, 20f),
+                $"<color=#{HudStyle.AccentHex}><b>청소한 먼지{new string(' ', 8)}충돌</b></color>",
+                new GUIStyle(HudStyle.BodyStyle) { alignment = TextAnchor.MiddleRight });
             for (int index = 0; index < scores.Length; index++)
             {
                 PlayerScore score = scores[index];
-                GUI.Label(new Rect(panelLeft + 24f, panelTop + 70f + index * 24f, width - 48f, 20f),
-                    $"{score.Nickname,-16} {score.CleanedDustCount,8}개 {score.CrashCount,10}회");
+                var row = new Rect(panelLeft + 28f, panelTop + 80f + index * 26f, width - 56f, 20f);
+                GUI.Label(row, score.Nickname, HudStyle.BodyStyle);
+                GUI.Label(row, $"{score.CleanedDustCount}개{new string(' ', 10)}{score.CrashCount}회",
+                    new GUIStyle(HudStyle.BodyStyle) { alignment = TextAnchor.MiddleRight });
             }
 
-            if (GUI.Button(new Rect(panelLeft + (width - 120f) * 0.5f, panelTop + height - 58f, 120f, 30f),
+            if (GUI.Button(new Rect(panelLeft + (width - 140f) * 0.5f, panelTop + height - 66f, 140f, 34f),
                     "확인"))
                 RequestReturnRpc();
 
-            GUI.Label(new Rect(panelLeft, panelTop + height - 24f, width, 20f),
+            GUI.Label(new Rect(panelLeft, panelTop + height - 26f, width, 18f),
                 "확인을 누르면 대기방으로 돌아갑니다",
-                new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter });
+                new GUIStyle(HudStyle.HintStyle) { alignment = TextAnchor.MiddleCenter });
         }
     }
 }

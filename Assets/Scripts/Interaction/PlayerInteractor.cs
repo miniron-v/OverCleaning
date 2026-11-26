@@ -96,10 +96,14 @@ namespace OverCleaning.Interaction
 
             // 키가 셔플되어도 맞는 안내가 나오도록 실제 바인딩에서 이름을 읽는다.
             string keyName = GetInteractKeyName();
-            string message = string.IsNullOrEmpty(keyName) ? _target.Prompt : $"{keyName}: {_target.Prompt}";
-            const float width = 320f;
-            const float height = 32f;
-            GUI.Box(new Rect((Screen.width - width) * 0.5f, Screen.height - height - 48f, width, height), message);
+            string message = string.IsNullOrEmpty(keyName)
+                ? _target.Prompt
+                : $"<color=#{OverCleaning.InGame.HudStyle.AccentHex}><b>{keyName}</b></color>  {_target.Prompt}";
+            const float width = 340f;
+            const float height = 40f;
+            OverCleaning.InGame.HudStyle.Pill(
+                new Rect((Screen.width - width) * 0.5f, Screen.height - height - 44f, width, height),
+                message);
         }
 
         private string GetInteractKeyName()
