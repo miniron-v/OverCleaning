@@ -44,10 +44,18 @@ namespace OverCleaning.EditorTools
             var root = new GameObject("Hotel Decor");
 
             // 객실 세 칸: 북쪽 벽에 머리를 붙인 침대와 곁의 협탁.
+            // 창문 앞을 막으면 창문닦이가 설 자리가 없으므로 창문 x를 피해서 놓는다.
             GameObject northWall = GameObject.Find("Wall (3)");
             float northInnerZ = northWall != null
                 ? northWall.transform.position.z - northWall.transform.localScale.z * 0.5f
                 : 6f;
+            var windowXs = new System.Collections.Generic.List<float>();
+            for (int windowIndex = 1; windowIndex <= 3; windowIndex++)
+            {
+                GameObject window = GameObject.Find($"Window {windowIndex}");
+                if (window != null)
+                    windowXs.Add(window.transform.position.x);
+            }
             // 소파가 놓인 거실은 그대로 둔다. 침대는 나머지 객실에만 놓는다.
             CoopCarriable sofa = Object.FindAnyObjectByType<CoopCarriable>();
             for (int roomIndex = 1; roomIndex <= 3; roomIndex++)
@@ -64,14 +72,24 @@ namespace OverCleaning.EditorTools
                         continue;
                 }
 
+                // 이 방의 창문에서 비켜선 쪽을 먼저 노린다. 창문 앞은 창문닦이의 자리다.
+                float preferredX = bounds.center.x;
+                foreach (float windowX in windowXs)
+                {
+                    if (windowX < bounds.min.x || windowX > bounds.max.x)
+                        continue;
+                    bool roomOnRight = bounds.max.x - windowX > windowX - bounds.min.x;
+                    preferredX = windowX + (roomOnRight ? 2.6f : -2.6f);
+                }
+
                 Vector3 bedSpot = FindFreeSpot(
-                    new Vector3(bounds.center.x, 0f, northInnerZ - 1.35f),
-                    new Vector3(0.85f, 0.45f, 1.15f), bounds);
+                    new Vector3(preferredX, 0f, northInnerZ - 1.35f),
+                    new Vector3(0.85f, 0.45f, 1.15f), bounds, windowXs, 2.1f);
                 BuildBed(root.transform, bedSpot);
 
                 Vector3 standSpot = FindFreeSpot(
                     bedSpot + new Vector3(1.35f, 0f, 0.75f),
-                    new Vector3(0.25f, 0.4f, 0.23f), bounds);
+                    new Vector3(0.25f, 0.4f, 0.23f), bounds, windowXs, 1.3f);
                 BuildNightstand(root.transform, standSpot);
             }
 
@@ -247,9 +265,10 @@ namespace OverCleaning.EditorTools
 
         /// <summary>
         /// 그 자리가 기존 가구와 겹치면 좌우로 비켜 가며 빈자리를 찾는다.
-        /// 바닥·러그·매트는 깔개라 장애물로 치지 않는다.
+        /// 바닥·러그·매트는 깔개라 장애물로 치지 않고, 피할 x(창문 앞)도 받는다.
         /// </summary>
-        private static Vector3 FindFreeSpot(Vector3 preferred, Vector3 halfExtents, Bounds floorBounds)
+        private static Vector3 FindFreeSpot(Vector3 preferred, Vector3 halfExtents, Bounds floorBounds,
+            System.Collections.Generic.List<float> avoidXs = null, float avoidDistance = 0f)
         {
             float[] offsets = { 0f, 0.9f, -0.9f, 1.8f, -1.8f, 2.7f, -2.7f };
             foreach (float offset in offsets)
@@ -257,6 +276,8 @@ namespace OverCleaning.EditorTools
                 Vector3 candidate = preferred + new Vector3(offset, 0f, 0f);
                 if (candidate.x - halfExtents.x < floorBounds.min.x + 0.2f ||
                     candidate.x + halfExtents.x > floorBounds.max.x - 0.2f)
+                    continue;
+                if (avoidXs != null && IsNearAny(candidate.x, avoidXs, avoidDistance))
                     continue;
                 Vector3 center = candidate + Vector3.up * (halfExtents.y + 0.05f);
                 int count = Physics.OverlapBoxNonAlloc(center, halfExtents, OverlapBuffer,
@@ -276,6 +297,17 @@ namespace OverCleaning.EditorTools
             }
 
             return preferred;
+        }
+
+        private static bool IsNearAny(float x, System.Collections.Generic.List<float> targets, float distance)
+        {
+            foreach (float target in targets)
+            {
+                if (Mathf.Abs(x - target) < distance)
+                    return true;
+            }
+
+            return false;
         }
 
         private static Material EnsureMaterial(string name, Color color)
