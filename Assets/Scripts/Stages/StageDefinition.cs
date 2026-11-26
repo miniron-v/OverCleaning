@@ -9,7 +9,7 @@ namespace OverCleaning.Stages
     public sealed class StageDefinition : ScriptableObject
     {
         /// <summary>한 스테이지에서 얻을 수 있는 별의 최대 개수.</summary>
-        public const int MaxStars = 3;
+        public const int MaxStars = 5;
 
         [Tooltip("대분류. 대기방 마을에서 갈림길 하나가 월드 하나다.")]
         [Min(1)] [SerializeField] private int _world = 1;
@@ -25,7 +25,7 @@ namespace OverCleaning.Stages
         [Tooltip("시작할 씬 이름. Build Profiles의 씬 목록에 있어야 한다.")]
         [SerializeField] private string _sceneName;
 
-        [Tooltip("별 3개를 얻기 위한 목표.")]
+        [Tooltip("별 5개를 얻기 위한 목표.")]
         [TextArea] [SerializeField] private string _goal;
 
         /// <summary>화면에 보이는 번호. 예: "1-2".</summary>

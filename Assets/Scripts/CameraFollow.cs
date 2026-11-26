@@ -40,6 +40,15 @@ namespace OverCleaning.InGame
             _normalFieldOfView = _camera.fieldOfView;
         }
 
+        /// <summary>대상이 순간이동했을 때 따라 미끄러지지 않고 바로 그 자리로 옮긴다.</summary>
+        public void SnapToTarget()
+        {
+            if (Target == null)
+                return;
+            transform.position = Target.position + _offset;
+            _velocity = Vector3.zero;
+        }
+
         private void LateUpdate()
         {
             float fieldOfView = IsRiding ? _ridingFieldOfView : IsWide ? _wideFieldOfView : _normalFieldOfView;
