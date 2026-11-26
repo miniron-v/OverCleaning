@@ -104,7 +104,10 @@ namespace OverCleaning.Lobby
             if (player.TryGetComponent(out Collider body))
                 body.enabled = !isSeated;
             if (player.TryGetComponent(out PlayerModelFacing facing))
+            {
                 facing.FacingTarget = isSeated ? _seat : null;
+                facing.SeatPoint = isSeated ? _seat : null;
+            }
             if (!player.IsOwner)
                 return;
 
@@ -113,9 +116,9 @@ namespace OverCleaning.Lobby
             if (player.TryGetComponent(out Rigidbody playerBody))
                 playerBody.isKinematic = isSeated;
 
+            // 높이는 다른 화면에 전해지지 않으므로 몸은 늘 바닥에 둔다. 앉은 높이는 모델이 맡는다.
             Vector3 position = isSeated ? _seat.position : transform.position - transform.forward * _exitDistance;
-            if (!isSeated)
-                position.y = 0f;
+            position.y = 0f;
             player.transform.position = position;
             if (playerBody != null)
                 playerBody.position = position;
