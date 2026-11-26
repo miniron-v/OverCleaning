@@ -306,7 +306,7 @@ namespace OverCleaning.EditorTools
                 SetFixedWidth(stars[index].gameObject, 72f);
             }
 
-            TMP_Text goal = UIBuilder.CreateLabel(page, "Goal", "목표: 별 3개를 얻기 위한 목표", 30f, 96f);
+            TMP_Text goal = UIBuilder.CreateLabel(page, "Goal", "목표: 별 5개를 얻기 위한 목표", 30f, 96f);
 
             return new StagePage(stageNumber, stageName, thumbnail, placeholder.gameObject, stars, goal);
         }

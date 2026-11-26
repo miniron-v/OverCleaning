@@ -29,11 +29,19 @@ namespace OverCleaning.InGame
         /// </summary>
         public Transform FacingTarget { get; set; }
 
+        /// <summary>
+        /// 정해지면 모델을 이 자리에 둔다. 예: 의자에 앉은 동안의 앉는 자리.
+        /// 높이는 다른 화면에 전해지지 않으므로, 몸은 바닥에 둔 채 모델만 올려 모든 화면에서 같게 그린다.
+        /// </summary>
+        public Transform SeatPoint { get; set; }
+
         private NetworkObject _networkObject;
+        private Vector3 _modelLocalPosition;
 
         private void Awake()
         {
             _networkObject = GetComponent<NetworkObject>();
+            _modelLocalPosition = _model.localPosition;
         }
 
         private void OnEnable()
@@ -52,6 +60,10 @@ namespace OverCleaning.InGame
                 _animator = _model.GetComponentInChildren<Animator>();
             if (_animator != null)
                 _animator.SetBool(IsWalkingId, isWalking);
+            if (SeatPoint != null)
+                _model.position = SeatPoint.position;
+            else
+                _model.localPosition = _modelLocalPosition;
             if (FacingTarget != null)
             {
                 _model.rotation = Quaternion.LookRotation(Vector3.ProjectOnPlane(FacingTarget.forward, Vector3.up), Vector3.up);

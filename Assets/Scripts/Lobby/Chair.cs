@@ -7,8 +7,8 @@ using UnityEngine;
 namespace OverCleaning.Lobby
 {
     /// <summary>
-    /// 사무실 의자. 상호작용하면 앉아 책상의 컴퓨터를 보고, 다시 하면 일어나 의자 뒤에 선다.
-    /// 앉은 동안 컴퓨터 화면을 띄워 캐릭터를 고르게 한다.
+    /// 앉을 수 있는 자리. 상호작용하면 앉고, 다시 하면 일어나 의자 뒤(-Z)에 선다.
+    /// 체크인 카운터 의자는 앉은 동안 컴퓨터 화면을 띄워 캐릭터를 고르게 하고, 소파 자리는 앉기만 한다.
     ///
     /// 누가 앉았는지는 서버가 정하고 모든 클라이언트가 같은 사람을 앉혀 그린다.
     /// 앉은 사람의 콜라이더를 모든 화면에서 꺼야 지나가던 사람이 부딪혀 기절시키지 않는다.
@@ -17,11 +17,14 @@ namespace OverCleaning.Lobby
     {
         private const ulong NoOccupant = ulong.MaxValue;
 
-        [Tooltip("앉을 자리. 앞(+Z)이 컴퓨터 쪽이어야 한다.")]
+        [Tooltip("앉을 자리. 앞(+Z)이 앉아서 바라볼 쪽이어야 한다.")]
         [SerializeField] private Transform _seat;
 
-        [Tooltip("일어날 때 의자 중심에서 뒤로 떨어질 거리.")]
+        [Tooltip("일어날 때 이 오브젝트 중심에서 -Z로 떨어질 거리.")]
         [Min(0f)] [SerializeField] private float _exitDistance = 0.9f;
+
+        [Tooltip("앉은 동안 캐릭터 선택 화면을 띄울지.")]
+        [SerializeField] private bool _opensCharacterSelect = true;
 
         private readonly NetworkVariable<ulong> _occupant = new NetworkVariable<ulong>(NoOccupant);
         private NetworkObject _seatedPlayer;
@@ -101,7 +104,10 @@ namespace OverCleaning.Lobby
             if (player.TryGetComponent(out Collider body))
                 body.enabled = !isSeated;
             if (player.TryGetComponent(out PlayerModelFacing facing))
+            {
                 facing.FacingTarget = isSeated ? _seat : null;
+                facing.SeatPoint = isSeated ? _seat : null;
+            }
             if (!player.IsOwner)
                 return;
 
@@ -110,9 +116,9 @@ namespace OverCleaning.Lobby
             if (player.TryGetComponent(out Rigidbody playerBody))
                 playerBody.isKinematic = isSeated;
 
+            // 높이는 다른 화면에 전해지지 않으므로 몸은 늘 바닥에 둔다. 앉은 높이는 모델이 맡는다.
             Vector3 position = isSeated ? _seat.position : transform.position - transform.forward * _exitDistance;
-            if (!isSeated)
-                position.y = 0f;
+            position.y = 0f;
             player.transform.position = position;
             if (playerBody != null)
                 playerBody.position = position;
@@ -122,7 +128,7 @@ namespace OverCleaning.Lobby
 
         private void OnGUI()
         {
-            if (!IsLocalSeated || _seatedPlayer == null || !_seatedPlayer.TryGetComponent(out PlayerCharacter character))
+            if (!_opensCharacterSelect || !IsLocalSeated || _seatedPlayer == null || !_seatedPlayer.TryGetComponent(out PlayerCharacter character))
                 return;
 
             // 크기는 확대(GUI.matrix) 없이 값으로 정한다. 처음 화면(360×200, 기본 글자 13, 기본 여백 4)의 두 배다.
