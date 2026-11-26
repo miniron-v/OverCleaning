@@ -16,6 +16,8 @@ namespace OverCleaning.InGame
     {
         [Tooltip("부딪친 뒤 움직이지 못하는 시간(초).")]
         [Min(0.1f)] [SerializeField] private float _stunDuration = 1.2f;
+        [Tooltip("물웅덩이에 미끄러져 넘어졌을 때 못 움직이는 시간(초).")]
+        [Min(0.1f)] [SerializeField] private float _slipStunDuration = 1f;
         [Tooltip("부딪친 반대쪽으로 튕겨나는 속도.")]
         [Min(0f)] [SerializeField] private float _knockbackSpeed = 5f;
 
@@ -99,7 +101,7 @@ namespace OverCleaning.InGame
 
             // 부딪친 반대쪽으로 튕겨난다. 서버 확정을 기다리지 않고 바로 몸이 반응해야
             // 부딪친 느낌이 난다.
-            ApplyKnockback(_body.position - collision.rigidbody.position, _knockbackSpeed);
+            ApplyKnockback(_body.position - collision.rigidbody.position, _knockbackSpeed, _stunDuration);
 
             ReportCrashRpc(other);
         }
@@ -136,6 +138,35 @@ namespace OverCleaning.InGame
             ServerApplyCrash(direction, _knockbackSpeed * CarKnockbackMultiplier);
         }
 
+        /// <summary>
+        /// 물웅덩이에 미끄러져 넘어졌다. 내 기기에서 부른다(웅덩이 판정이 내 발 밑이라서).
+        /// 가던 방향 그대로 주르륵 밀려나며 잠깐 기절한다. 충돌과 달리 전적에 세지 않고
+        /// 털먼지도 흩지 않는다 — 넘어진 것이지 부딪친 것이 아니다.
+        /// </summary>
+        public void RequestSlip(Vector3 slideVelocity)
+        {
+            if (!IsOwner || !IsSpawned || IsMovementFrozen || slideVelocity.sqrMagnitude < 0.01f)
+                return;
+
+            // 서버 확정을 기다리지 않고 바로 미끄러져야 밟은 느낌이 난다.
+            ApplyKnockback(slideVelocity, slideVelocity.magnitude * 1.15f, _slipStunDuration);
+            ReportSlipRpc();
+        }
+
+        [Rpc(SendTo.Server)]
+        private void ReportSlipRpc(RpcParams rpcParams = default)
+        {
+            if (rpcParams.Receive.SenderClientId != OwnerClientId || IsStunned)
+                return;
+
+            _stunnedUntil.Value = NetworkManager.ServerTime.Time + _slipStunDuration;
+
+            // 미끄러져도 든 것은 놓친다.
+            CarriableItem heldItem = GetComponentInChildren<CarriableItem>();
+            if (heldItem != null)
+                heldItem.ServerForceDrop();
+        }
+
         /// <summary>서버에서만 부른다. 기절시키고, 든 것을 떨어뜨리고, 털먼지를 흩는다.</summary>
         private void ServerApplyCrash(Vector3 knockbackDirection, float knockbackSpeed)
         {
@@ -166,12 +197,12 @@ namespace OverCleaning.InGame
             // 제 기기에서 이미 예측으로 튕겨났으면 두 번 하지 않는다.
             if (Time.time < _predictedStunEndTime)
                 return;
-            ApplyKnockback(direction, speed);
+            ApplyKnockback(direction, speed, _stunDuration);
         }
 
-        private void ApplyKnockback(Vector3 direction, float speed)
+        private void ApplyKnockback(Vector3 direction, float speed, float stunDuration)
         {
-            _predictedStunEndTime = Time.time + _stunDuration;
+            _predictedStunEndTime = Time.time + stunDuration;
             // RPC는 프레임 초반에 오므로 Update까지 기다리면 그 사이 이동 코드가 튕겨난 속도를 덮어쓴다.
             // 걷기를 막으면 걷던 속도가 멈추므로, 막은 뒤에 튕겨낸다.
             UpdateMovementFrozen();

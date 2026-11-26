@@ -20,12 +20,18 @@ public class PlayerMovement : MonoBehaviour
     [Tooltip("물웅덩이 위에서 미끄러지는 정도. 작을수록 빙판처럼 늦게 서고 늦게 출발한다.")]
     [Min(0.5f)] [SerializeField] private float _slipSharpness = 2.2f;
 
+    [Tooltip("이보다 빠르게 물웅덩이에 들어서면 미끄러져 넘어진다(m/s).")]
+    [Min(0f)] [SerializeField] private float _slipFallSpeed = 2.5f;
+
     // 방향별 개별 액션 입력. 키 셔플이 이 액션들의 바인딩을 재배치해도 이동 로직은 그대로다.
     private bool _up, _down, _left, _right;
 
     /// <summary>물웅덩이 판정에 쓸 얼룩밭. 씬마다 있을 수도 없을 수도 있어 때때로 다시 찾는다.</summary>
     private OverCleaning.InGame.GrimeField _grimeField;
     private float _grimeSearchTime;
+
+    /// <summary>지난 물리 단계에 웅덩이 위였는지. 들어서는 순간에만 넘어지게 한다.</summary>
+    private bool _wasOnPuddle;
 
     /// <summary>이동을 막고 있는 이유들. 하나라도 남아 있으면 걷지 못한다.</summary>
     private readonly HashSet<object> _locks = new HashSet<object>();
@@ -112,10 +118,22 @@ public class PlayerMovement : MonoBehaviour
             FacingDirection = new Vector3(input.x, 0f, input.y).normalized;
 
         Vector3 velocity = _rigidbody.linearVelocity;
-        if (IsOnPuddle())
+        bool onPuddle = IsOnPuddle();
+        if (onPuddle)
         {
+            // 빠르게 들어서면 미끄러져 넘어진다. 가던 방향 그대로 주르륵 밀려난다.
+            Vector3 planar = new Vector3(velocity.x, 0f, velocity.z);
+            if (!_wasOnPuddle && planar.magnitude >= _slipFallSpeed &&
+                TryGetComponent(out OverCleaning.InGame.PlayerCrash crash))
+            {
+                _wasOnPuddle = true;
+                crash.RequestSlip(planar);
+                return;
+            }
+
             // 물웅덩이 위에서는 빙판처럼 미끄러진다. 속도를 바로 박지 않고
             // 가려는 속도로 천천히 수렴시켜, 늦게 서고 늦게 출발하며 관성이 남는다.
+            _wasOnPuddle = true;
             float alpha = 1f - Mathf.Exp(-_slipSharpness * Time.fixedDeltaTime);
             _rigidbody.linearVelocity = new Vector3(
                 Mathf.Lerp(velocity.x, movement.x, alpha),
@@ -124,6 +142,7 @@ public class PlayerMovement : MonoBehaviour
             return;
         }
 
+        _wasOnPuddle = false;
         _rigidbody.linearVelocity = new Vector3(movement.x, velocity.y, movement.z);
     }
 
