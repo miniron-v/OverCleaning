@@ -87,9 +87,11 @@ namespace OverCleaning.EditorTools
                     new Vector3(0.85f, 0.45f, 1.15f), bounds, windowXs, 2.1f);
                 BuildBed(root.transform, bedSpot);
 
+                // 협탁은 침대에서 방 안쪽을 향한 옆에 둔다. 벽 쪽이면 자리가 없다.
+                float standSide = bedSpot.x <= bounds.center.x ? 1.35f : -1.35f;
                 Vector3 standSpot = FindFreeSpot(
-                    bedSpot + new Vector3(1.35f, 0f, 0.75f),
-                    new Vector3(0.25f, 0.4f, 0.23f), bounds, windowXs, 1.3f);
+                    bedSpot + new Vector3(standSide, 0f, 0.75f),
+                    new Vector3(0.25f, 0.4f, 0.23f), bounds, windowXs, 1.1f);
                 BuildNightstand(root.transform, standSpot);
             }
 
