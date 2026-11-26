@@ -1,3 +1,4 @@
+using OverCleaning.InGame;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -9,8 +10,9 @@ namespace OverCleaning.EditorTools
     /// 스테이지를 호텔답게 꾸미는 소품을 배치한다. 객실마다 침대·협탁·램프,
     /// 복도에 리셉션 데스크·짐수레·야자수 화분. 전부 프리미티브 조립이고
     /// 네트워크와 무관한 붙박이라 씬에 저장만 하면 된다.
-    /// 자리는 바닥 Collider 경계에서 재고, 기존 가구와 겹치면 옆으로 비켜 놓는다.
-    /// 다시 돌려도 이미 있으면 건너뛴다.
+    /// 소파가 있는 거실은 손대지 않고, 자리는 바닥 Collider 경계에서 재며
+    /// 기존 가구와 겹치면 옆으로 비켜 놓는다.
+    /// 다시 돌리면 이미 놓인 소품을 걷어내고 처음부터 다시 놓는다.
     /// </summary>
     public static class HotelDecorSetup
     {
@@ -26,16 +28,11 @@ namespace OverCleaning.EditorTools
         private static Material _palm;
         private static Material _terracotta;
 
-        [MenuItem("Tools/OverCleaning/호텔 소품 배치")]
+        [MenuItem("Tools/OverCleaning/호텔 소품 배치 (다시 놓기)")]
         public static void Run()
         {
             Scene scene = EditorSceneManager.OpenScene(ScenePath);
-            if (GameObject.Find("Hotel Decor") != null)
-            {
-                Debug.Log("호텔 소품이 이미 배치되어 있습니다.");
-                return;
-            }
-
+            RemoveExisting();
             Physics.SyncTransforms();
             _darkWood = EnsureMaterial("Hotel Dark Wood", new Color(0.32f, 0.22f, 0.15f));
             _linen = EnsureMaterial("Hotel Linen", new Color(0.95f, 0.93f, 0.87f));
@@ -51,12 +48,21 @@ namespace OverCleaning.EditorTools
             float northInnerZ = northWall != null
                 ? northWall.transform.position.z - northWall.transform.localScale.z * 0.5f
                 : 6f;
+            // 소파가 놓인 거실은 그대로 둔다. 침대는 나머지 객실에만 놓는다.
+            CoopCarriable sofa = Object.FindAnyObjectByType<CoopCarriable>();
             for (int roomIndex = 1; roomIndex <= 3; roomIndex++)
             {
                 GameObject floor = GameObject.Find($"DustFloor_Room{roomIndex}");
                 if (floor == null || !floor.TryGetComponent(out Collider floorCollider))
                     continue;
                 Bounds bounds = floorCollider.bounds;
+                if (sofa != null)
+                {
+                    Vector3 sofaPosition = sofa.transform.position;
+                    if (sofaPosition.x >= bounds.min.x && sofaPosition.x <= bounds.max.x &&
+                        sofaPosition.z >= bounds.min.z - 1f)
+                        continue;
+                }
 
                 Vector3 bedSpot = FindFreeSpot(
                     new Vector3(bounds.center.x, 0f, northInnerZ - 1.35f),
@@ -94,6 +100,30 @@ namespace OverCleaning.EditorTools
             EditorSceneManager.SaveScene(scene);
             AssetDatabase.SaveAssets();
             Debug.Log("호텔 소품 배치 완료.");
+        }
+
+        [MenuItem("Tools/OverCleaning/호텔 소품 제거")]
+        public static void Remove()
+        {
+            Scene scene = EditorSceneManager.OpenScene(ScenePath);
+            if (!RemoveExisting())
+            {
+                Debug.Log("치울 호텔 소품이 없습니다.");
+                return;
+            }
+
+            EditorSceneManager.MarkSceneDirty(scene);
+            EditorSceneManager.SaveScene(scene);
+            Debug.Log("호텔 소품을 치웠습니다.");
+        }
+
+        private static bool RemoveExisting()
+        {
+            GameObject existing = GameObject.Find("Hotel Decor");
+            if (existing == null)
+                return false;
+            Object.DestroyImmediate(existing);
+            return true;
         }
 
         // ---------- 소품 ----------
