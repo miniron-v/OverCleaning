@@ -217,6 +217,32 @@ namespace OverCleaning.InGame
         }
 
         /// <summary>
+        /// 이 자리가 아직 닦이지 않은 바닥 얼룩(물웅덩이) 위인가. 밟으면 미끄러지는
+        /// 판정에 쓴다. 남은 횟수가 동기화되는 값이라 어느 기기에서 물어도 같다.
+        /// </summary>
+        public bool IsOnWetFloor(Vector3 position)
+        {
+            if (!IsBuilt)
+                return false;
+
+            for (int index = 0; index < _spots.Length; index++)
+            {
+                GrimeSpot spot = _spots[index];
+                if (spot == null || spot.Kind != GrimeKind.Floor || _remainingWipes[index] <= 0)
+                    continue;
+
+                // 웅덩이 그림은 쿼드 한 변 크기로 퍼져 있다. 반지름은 그 절반이다.
+                Vector3 offset = position - spot.transform.position;
+                offset.y = 0f;
+                float radius = spot.transform.lossyScale.x * 0.5f;
+                if (offset.sqrMagnitude <= radius * radius)
+                    return true;
+            }
+
+            return false;
+        }
+
+        /// <summary>
         /// 서버에서만 부른다. 얼룩을 한 번 닦고, 이번에 다 지워졌으면 참을 돌려준다.
         /// 누가 닦았는지의 전적은 부른 쪽(도구)이 챙긴다.
         /// </summary>
