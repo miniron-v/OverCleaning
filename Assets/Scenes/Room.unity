@@ -2143,6 +2143,7 @@ MonoBehaviour:
   ShowTopMostFoldoutHeaderGroup: 1
   _seat: {fileID: 363830149}
   _exitDistance: 0.9
+  _opensCharacterSelect: 1
 --- !u!1 &217951042
 GameObject:
   m_ObjectHideFlags: 0
@@ -4700,6 +4701,7 @@ MonoBehaviour:
   ShowTopMostFoldoutHeaderGroup: 1
   _seat: {fileID: 149284525}
   _exitDistance: 0.9
+  _opensCharacterSelect: 1
 --- !u!1 &395899363
 GameObject:
   m_ObjectHideFlags: 0
@@ -4725,7 +4727,7 @@ RectTransform:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 395899363}
-  m_LocalRotation: {x: 0, y: 1, z: 0, w: -0.00000004371139}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: -0.11}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
@@ -11691,9 +11693,25 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 330992006}
     m_Modifications:
+    - target: {fileID: 1672011491, guid: ff9a2c0bc99b075448a940bfb58964f4, type: 3}
+      propertyPath: m_InScenePlaced
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 1672011491, guid: ff9a2c0bc99b075448a940bfb58964f4, type: 3}
+      propertyPath: GlobalObjectIdHash
+      value: 4000862695
+      objectReference: {fileID: 0}
     - target: {fileID: 309104792546762407, guid: ff9a2c0bc99b075448a940bfb58964f4, type: 3}
       propertyPath: m_Name
       value: Sofa
+      objectReference: {fileID: 0}
+    - target: {fileID: 1488522693524117326, guid: ff9a2c0bc99b075448a940bfb58964f4, type: 3}
+      propertyPath: m_InScenePlaced
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 1488522693524117326, guid: ff9a2c0bc99b075448a940bfb58964f4, type: 3}
+      propertyPath: GlobalObjectIdHash
+      value: 291042173
       objectReference: {fileID: 0}
     - target: {fileID: 5781362687843983932, guid: ff9a2c0bc99b075448a940bfb58964f4, type: 3}
       propertyPath: m_LocalPosition.x
@@ -12692,9 +12710,25 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 330992006}
     m_Modifications:
+    - target: {fileID: 1672011491, guid: ff9a2c0bc99b075448a940bfb58964f4, type: 3}
+      propertyPath: m_InScenePlaced
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 1672011491, guid: ff9a2c0bc99b075448a940bfb58964f4, type: 3}
+      propertyPath: GlobalObjectIdHash
+      value: 3565315379
+      objectReference: {fileID: 0}
     - target: {fileID: 309104792546762407, guid: ff9a2c0bc99b075448a940bfb58964f4, type: 3}
       propertyPath: m_Name
       value: Sofa
+      objectReference: {fileID: 0}
+    - target: {fileID: 1488522693524117326, guid: ff9a2c0bc99b075448a940bfb58964f4, type: 3}
+      propertyPath: m_InScenePlaced
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 1488522693524117326, guid: ff9a2c0bc99b075448a940bfb58964f4, type: 3}
+      propertyPath: GlobalObjectIdHash
+      value: 3755423303
       objectReference: {fileID: 0}
     - target: {fileID: 5781362687843983932, guid: ff9a2c0bc99b075448a940bfb58964f4, type: 3}
       propertyPath: m_LocalPosition.x
@@ -13325,6 +13359,7 @@ MonoBehaviour:
   ShowTopMostFoldoutHeaderGroup: 1
   _seat: {fileID: 1130014646}
   _exitDistance: 0.9
+  _opensCharacterSelect: 1
 --- !u!1 &1230997682
 GameObject:
   m_ObjectHideFlags: 0
@@ -15538,6 +15573,7 @@ MonoBehaviour:
   ShowTopMostFoldoutHeaderGroup: 1
   _seat: {fileID: 217951043}
   _exitDistance: 0.9
+  _opensCharacterSelect: 1
 --- !u!1001 &1486096742
 PrefabInstance:
   m_ObjectHideFlags: 0
