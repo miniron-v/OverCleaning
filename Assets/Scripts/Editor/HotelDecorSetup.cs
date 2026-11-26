@@ -280,23 +280,56 @@ namespace OverCleaning.EditorTools
                 if (avoidXs != null && IsNearAny(candidate.x, avoidXs, avoidDistance))
                     continue;
                 Vector3 center = candidate + Vector3.up * (halfExtents.y + 0.05f);
-                int count = Physics.OverlapBoxNonAlloc(center, halfExtents, OverlapBuffer,
-                    Quaternion.identity, ~0, QueryTriggerInteraction.Ignore);
-                bool blocked = false;
-                for (int index = 0; index < count; index++)
-                {
-                    string hit = OverlapBuffer[index].name;
-                    if (hit.Contains("Floor") || hit.Contains("Rug") || hit.Contains("Doormat") ||
-                        hit.Contains("Grass") || hit.Contains("Yard"))
-                        continue;
-                    blocked = true;
-                    break;
-                }
-                if (!blocked)
+                if (!OverlapsAnything(center, halfExtents))
                     return candidate;
             }
 
             return preferred;
+        }
+
+        /// <summary>
+        /// 그 자리에 무엇이든 서 있는지 본다. 장식 가구(장롱·사이드보드)는 Collider가
+        /// 없어 물리 검사에 안 걸리므로, Renderer 경계로도 함께 본다.
+        /// 바닥·깔개·얼룩·먼지 같은 깔린 것들은 장애물로 치지 않는다.
+        /// </summary>
+        private static bool OverlapsAnything(Vector3 center, Vector3 halfExtents)
+        {
+            int count = Physics.OverlapBoxNonAlloc(center, halfExtents, OverlapBuffer,
+                Quaternion.identity, ~0, QueryTriggerInteraction.Ignore);
+            for (int index = 0; index < count; index++)
+            {
+                if (!IsIgnorableName(OverlapBuffer[index].name))
+                    return true;
+            }
+
+            var box = new Bounds(center, halfExtents * 2f);
+            foreach (Renderer blocker in Object.FindObjectsByType<Renderer>(FindObjectsSortMode.None))
+            {
+                if (IsIgnorableName(blocker.gameObject.name) ||
+                    IsIgnorableName(blocker.transform.root.gameObject.name))
+                    continue;
+                if (box.Intersects(blocker.bounds))
+                    return true;
+            }
+
+            return false;
+        }
+
+        private static readonly string[] IgnorableNames =
+        {
+            "Floor", "Rug", "Doormat", "Grass", "Yard", "Stain", "Pane",
+            "Dust", "Sparkle", "Puff", "Label", "Tree", "Bush", "Stone",
+        };
+
+        private static bool IsIgnorableName(string name)
+        {
+            foreach (string keyword in IgnorableNames)
+            {
+                if (name.Contains(keyword))
+                    return true;
+            }
+
+            return false;
         }
 
         private static bool IsNearAny(float x, System.Collections.Generic.List<float> targets, float distance)
