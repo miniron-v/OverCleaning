@@ -1800,7 +1800,7 @@ MonoBehaviour:
   _itemName: "\uC18C\uD30C"
   _partialTiltAngle: 7
   _carrySpeedMultiplier: 0.55
-  _tetherRadius: 1.1
+  _tetherRadius: 0.8
 --- !u!114 &227898590
 MonoBehaviour:
   m_ObjectHideFlags: 0
