@@ -415,17 +415,17 @@ namespace OverCleaning.InGame
             if (distance <= _tetherRadius)
                 return;
 
-            // 줄에 걸렸다. 바깥으로 나가는 속도 성분만 지워 옆걸음과 회전은 그대로 둔다.
+            // 줄에 걸렸다. 위치를 직접 되돌리면 보간과 싸워 덜덜거리므로 속도로만 다룬다.
+            // 바깥으로 나가는 속도 성분을 지워 옆걸음과 회전은 그대로 두고,
+            // 넘친 만큼 자리로 끌어오는 스프링 속도를 더해 부드럽게 끌려온다.
             Vector3 outward = offset / distance;
             Vector3 velocity = body.linearVelocity;
             float outwardSpeed = velocity.x * outward.x + velocity.z * outward.z;
             if (outwardSpeed > 0f)
-                body.linearVelocity = velocity - outward * outwardSpeed;
-
-            // 멀리서 잡아 당겨 붙는 동안 순간이동하지 않도록 일정 속도로 끌려온다.
-            Vector3 corrected = anchor + outward * _tetherRadius;
-            corrected.y = body.position.y;
-            body.position = Vector3.MoveTowards(body.position, corrected, 8f * Time.fixedDeltaTime);
+                velocity -= outward * outwardSpeed;
+            float overshoot = distance - _tetherRadius;
+            velocity -= outward * Mathf.Min(overshoot * 7f, 4.5f);
+            body.linearVelocity = velocity;
         }
 
         public override void OnNetworkDespawn()
