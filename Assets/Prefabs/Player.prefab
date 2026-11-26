@@ -324,7 +324,7 @@ MonoBehaviour:
   ShowTopMostFoldoutHeaderGroup: 1
   _stunDuration: 1.2
   _knockbackSpeed: 5
-  _furDustCount: 10
+  _furDustCount: 5
   _furDustRadius: 1.5
   _furDustTexture: {fileID: 2800000, guid: 973ab1b4cf52476293979728166c29d1, type: 3}
 --- !u!114 &912834710293847562
