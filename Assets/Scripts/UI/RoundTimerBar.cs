@@ -49,7 +49,7 @@ namespace OverCleaning.InGame
         [SerializeField] private float _vignetteStart = 0.25f;
         [SerializeField] private float _vignetteEnd = 0.65f;
         [Tooltip("수면 부족 컨셉: 평소에도 깔려 있는 검은 가장자리 물듦.")]
-        [SerializeField] private Color _sleepyVignetteColor = new Color(0f, 0f, 0f, 0.4f);
+        [SerializeField] private Color _sleepyVignetteColor = new Color(0f, 0f, 0f, 0.78f);
 
         [Header("급박 알림")]
         [SerializeField] private float _noticeDuration = 2.4f;
