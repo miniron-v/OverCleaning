@@ -263,12 +263,12 @@ namespace OverCleaning.InGame
                 HasDustInRange ? "꾹: 제자리에서 쓸어 모으기 · 짧게: 내려놓기" :
                 "먼지 근처에서 꾹 누르면 뭉치로 모읍니다 · 짧게: 내려놓기";
 
-            var panel = new Rect(16f, 16f, 320f, 72f);
+            var panel = new Rect(16f, 118f, 320f, 72f);
             HudStyle.Panel(panel);
-            GUI.Label(new Rect(32f, 28f, 288f, 20f),
+            GUI.Label(new Rect(32f, 130f, 288f, 20f),
                 $"빗자루  <color=#FFFFFFD9><size=12>뭉친 먼지 {gathered}</size></color>",
                 HudStyle.TitleStyle);
-            GUI.Label(new Rect(32f, 54f, 288f, 16f), hint,
+            GUI.Label(new Rect(32f, 156f, 288f, 16f), hint,
                 hasSpace ? HudStyle.HintStyle : HudStyle.BodyStyle);
         }
 

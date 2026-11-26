@@ -181,18 +181,18 @@ namespace OverCleaning.InGame
                 vacuum.CanEmptyDustBin() ? "꾹: 먼지통 비우기 · 짧게: 내려놓기" :
                 "먼지를 버리려면 쓰레기통 가까이 가세요";
 
-            var panel = new Rect(16f, 16f, 320f, 96f);
+            var panel = new Rect(16f, 118f, 320f, 96f);
             HudStyle.Panel(panel);
-            GUI.Label(new Rect(32f, 28f, 288f, 20f),
+            GUI.Label(new Rect(32f, 130f, 288f, 20f),
                 $"청소기  <color=#FFFFFFD9><size=12>{status}</size></color>", HudStyle.TitleStyle);
-            HudStyle.Bar(new Rect(32f, 52f, 288f, 10f),
+            HudStyle.Bar(new Rect(32f, 154f, 288f, 10f),
                 (float)vacuum.StoredDustCount / vacuum.DustCapacity,
                 vacuum.IsFull ? HudStyle.Bad : HudStyle.Accent);
-            GUI.Label(new Rect(32f, 66f, 288f, 18f),
+            GUI.Label(new Rect(32f, 168f, 288f, 18f),
                 $"먼지통 {vacuum.StoredDustCount}/{vacuum.DustCapacity}" +
                 (vacuum.ReservedDustCount > 0 ? $"  ·  흡입 중 {vacuum.ReservedDustCount}" : string.Empty),
                 HudStyle.BodyStyle);
-            GUI.Label(new Rect(32f, 84f, 288f, 16f), hint, HudStyle.HintStyle);
+            GUI.Label(new Rect(32f, 186f, 288f, 16f), hint, HudStyle.HintStyle);
         }
     }
 }
