@@ -38,7 +38,7 @@ namespace OverCleaning.InGame
         [Tooltip("다 같이 들고 옮기는 동안의 이동 속도 배율. 물건이 따라올 수 있는 만큼만 걷게 한다.")]
         [Range(0.1f, 1f)] [SerializeField] private float _carrySpeedMultiplier = 0.55f;
         [Tooltip("든 동안 잡은 자리에서 벗어날 수 있는 거리. 작을수록 딱 붙는다.")]
-        [Min(0.05f)] [SerializeField] private float _tetherRadius = 0.4f;
+        [Min(0.05f)] [SerializeField] private float _tetherRadius = 1.1f;
 
         /// <summary>잡고 있는 사람들. 서버가 넣고 빼며 모두에게 내려간다.</summary>
         private readonly NetworkList<ulong> _lifterClientIds = new NetworkList<ulong>();
@@ -353,7 +353,7 @@ namespace OverCleaning.InGame
                     Vector3 direction = away.sqrMagnitude > 0.0001f
                         ? away.normalized
                         : (body.position - transform.position).normalized;
-                    Vector3 anchorWorld = closest + direction * 0.35f;
+                    Vector3 anchorWorld = closest + direction * 0.5f;
                     _localGrabOffset = Quaternion.Inverse(transform.rotation) *
                         (anchorWorld - transform.position);
                     _localGrabOffset.y = 0f;
